@@ -1,0 +1,17 @@
+:root {
+  --primary: #d4af37; /* Gold */
+  --primary-dark: #b8962e;
+  --bg-light: #f8f9fa;
+  --bg-dark: #0f172a;
+  --glass-bg: rgba(255, 255, 255, 0.15);
+  --glass-dark: rgba(0, 0, 0, 0.35);
+  --text-light: #111827;
+  --text-dark: #f9fafb;
+  --border-glass: rgba(255, 255, 255, 0.2);
+  --font-main: 'Poppins', sans-serif;
+  --font-urdu: 'Noto Nastaliq Urdu', serif;
+}
+
+body {
+  font-family: var(--font-main);
+}

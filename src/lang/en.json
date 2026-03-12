@@ -1,0 +1,31 @@
+{
+  "login": {
+    "title": "A ONE JEWELRY",
+    "subtitle": "Premium Point of Sale System",
+    "loginAs": "Login as",
+    "email": "Email or Username",
+    "password": "Password",
+    "remember": "Remember Me",
+    "forgot": "Forgot Password?",
+    "button": "Secure Login",
+    "loading": "Please wait..."
+  },
+  "roles": {
+    "superadmin": "Super Admin",
+    "admin": "Admin",
+    "manager": "Manager",
+    "cashier": "Cashier",
+    "biller": "Biller"
+  },
+  "messages": {
+    "success": "Login Successful",
+    "error": "Invalid Credentials",
+    "roleMismatch": "Selected role does not match",
+    "resetSent": "Reset link sent to email",
+    "enterEmail": "Enter your registered email"
+  },
+  "extra": {
+    "online": "System Online",
+    "version": "Version"
+  }
+}
