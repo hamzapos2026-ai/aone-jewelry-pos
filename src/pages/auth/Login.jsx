@@ -277,43 +277,69 @@ const Login = () => {
   };
 
   return (
-    <div
-      className={`relative min-h-screen flex flex-col overflow-hidden ${
-        isDark ? "bg-gray-950" : "bg-gray-900"
-      }`}
-    >
+    <div className="relative min-h-screen flex flex-col overflow-hidden bg-gray-900">
       <div className="absolute inset-0">
         <div className="absolute top-0 left-1/4 h-96 w-96 rounded-full bg-yellow-500/10 blur-3xl" />
         <div className="absolute right-1/4 bottom-0 h-80 w-80 rounded-full bg-amber-500/10 blur-3xl" />
         <div className="absolute top-1/2 left-1/2 h-[600px] w-[600px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-yellow-500/5 blur-3xl" />
-
         <div className="absolute inset-0 bg-[linear-gradient(rgba(251,191,36,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(251,191,36,0.03)_1px,transparent_1px)] bg-[size:50px_50px]" />
       </div>
 
-      <header className="relative z-10 flex items-center justify-between border-b border-yellow-500/20 bg-black/20 px-6 py-4 backdrop-blur-sm">
+      {/* Header */}
+      <header
+        className={`relative z-10 flex items-center justify-between px-6 py-4 border-b backdrop-blur-sm ${
+          isDark
+            ? "border-yellow-500/20 bg-black/20"
+            : "border-yellow-200 bg-white/90 shadow-sm"
+        }`}
+      >
         <div className="flex items-center gap-3">
-          <div className="rounded-xl bg-linear-to-br from-yellow-500 to-amber-600 p-2.5 shadow-lg shadow-yellow-500/25">
+          <div
+            className={`rounded-xl p-2.5 shadow-lg ${
+              isDark
+                ? "bg-linear-to-br from-yellow-500 to-amber-600 shadow-yellow-500/25"
+                : "bg-linear-to-br from-yellow-500 to-amber-600 shadow-yellow-500/20"
+            }`}
+          >
             <Gem size={22} className="text-white" />
           </div>
           <div>
-            <h1 className="text-lg font-bold tracking-tight text-white">
+            <h1
+              className={`text-lg font-bold tracking-tight ${
+                isDark ? "text-white" : "text-gray-900"
+              }`}
+            >
               A ONE JEWELRY
             </h1>
-            <p className="text-xs text-yellow-500/70">Point of Sale</p>
+            <p
+              className={`text-xs ${
+                isDark ? "text-yellow-500/70" : "text-amber-600"
+              }`}
+            >
+              Point of Sale
+            </p>
           </div>
         </div>
 
         <div className="flex gap-2">
           <button
             onClick={toggleLanguage}
-            className="rounded-xl border border-yellow-500/30 bg-white/5 p-2.5 text-yellow-500 transition-all hover:border-yellow-500/50 hover:bg-yellow-500/10"
+            className={`rounded-xl border p-2.5 transition-all ${
+              isDark
+                ? "border-yellow-500/30 bg-white/5 text-yellow-500 hover:border-yellow-500/50 hover:bg-yellow-500/10"
+                : "border-yellow-200 bg-white text-amber-600 hover:bg-yellow-50"
+            }`}
           >
             <Languages size={18} />
           </button>
 
           <button
             onClick={toggleTheme}
-            className="rounded-xl border border-yellow-500/30 bg-white/5 p-2.5 text-yellow-500 transition-all hover:border-yellow-500/50 hover:bg-yellow-500/10"
+            className={`rounded-xl border p-2.5 transition-all ${
+              isDark
+                ? "border-yellow-500/30 bg-white/5 text-yellow-500 hover:border-yellow-500/50 hover:bg-yellow-500/10"
+                : "border-yellow-200 bg-white text-amber-600 hover:bg-yellow-50"
+            }`}
           >
             {isDark ? <Sun size={18} /> : <Moon size={18} />}
           </button>
@@ -327,8 +353,8 @@ const Login = () => {
           transition={{ duration: 0.4 }}
           className={`relative w-full max-w-sm rounded-2xl p-7 shadow-2xl ${
             isDark
-              ? "border-2 border-yellow-500/30 bg-white/5 text-white shadow-yellow-500/10 backdrop-blur-xl"
-              : "border-2 border-yellow-400/50 bg-white text-gray-900 shadow-black/20"
+              ? "border-2 border-yellow-500/30 bg-white/5 text-white backdrop-blur-xl shadow-yellow-500/10"
+              : "border-2 border-yellow-300 bg-white/95 text-gray-900 shadow-black/20"
           }`}
         >
           {isDark && (
@@ -375,7 +401,7 @@ const Login = () => {
               className={`mb-4 inline-flex rounded-2xl p-3.5 ${
                 isDark
                   ? "border border-yellow-500/30 bg-yellow-500/10"
-                  : "border border-yellow-300 bg-linear-to-br from-yellow-50 to-amber-100"
+                  : "border border-yellow-200 bg-linear-to-br from-yellow-50 to-amber-100"
               }`}
               animate={{ y: [0, -3, 0] }}
               transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
