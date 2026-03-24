@@ -1,13 +1,11 @@
-// ======================================================
-// Dashboard Page
-// ======================================================
-
-const Dashboard = () => {
+const SuperAdminDashboard = () => {
   return (
-    <div className="p-6">
-      <h1>Dashboard ✅</h1>
+    <div className="min-h-[calc(100vh-120px)] flex items-center justify-center">
+      <h1 className="text-4xl font-bold text-slate-800">
+        Welcome Super Admin
+      </h1>
     </div>
   );
 };
 
-export default Dashboard;
+export default SuperAdminDashboard;

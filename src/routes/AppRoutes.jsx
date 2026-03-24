@@ -1,65 +1,173 @@
 import { Routes, Route, Navigate } from "react-router-dom";
+import { useSetup } from "../context/SetupContext";
 
+// ==================== SETUP ====================
+import SuperAdminSetup from "../pages/setup/SetupPage";
+
+// ==================== AUTH PAGES ====================
 import Login from "../pages/auth/Login";
-import SuperAdminDashboard from "../pages/superadmin/Dashboard";
+import ForgotPassword from "../pages/auth/ForgotPassword";
+import Register from "../pages/auth/Register";
+import ResetPassword from "../pages/auth/ResetPassword";
+
+// ==================== LAYOUTS ====================
+import AdminLayout from "../components/layout/AdminLayout";
+import CashierLayout from "../components/layout/CashierLayout";
+import ManagerLayout from "../components/layout/ManagerLayout";
+import BillerLayout from "../components/layout/BillerLayout";
+import SuperAdminLayout from "../components/layout/SuperAdminLayout";
+
+// ==================== DASHBOARDS ====================
 import AdminDashboard from "../pages/admin/Dashboard";
 import ManagerDashboard from "../pages/manager/Dashboard";
-import BillerDashboard from "../pages/biller/Dashboard";
 import CashierDashboard from "../pages/cashier/Dashboard";
+import BillerDashboard from "../pages/biller/Dashboard";
+import SuperAdminDashboard from "../pages/superadmin/Dashboard";
+import SuperAdminUsers from "../pages/superadmin/Users";
+import SuperAdminStores from "../pages/superadmin/Stores";
+import SuperAdminCreateStore from "../pages/superadmin/CreateStore";
+import SuperAdminLoginLogs from "../pages/superadmin/LoginLogs";
 
-import RoleBasedRoute from "./RoleBasedRoute";
+// ==================== ROUTE GUARDS ====================
+import { RoleBasedRoute, PublicRoute } from "./RoleBasedRoute";
 
+// ==================== LOADING SCREEN ====================
+const LoadingScreen = () => (
+  <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 via-black to-yellow-900">
+    <div className="text-center">
+      <div className="w-16 h-16 border-4 border-yellow-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
+      <p className="mt-4 text-yellow-400 font-semibold text-lg">Checking setup...</p>
+    </div>
+  </div>
+);
+
+// ==================== MAIN ROUTES ====================
 const AppRoutes = () => {
+  const { setupComplete, loading } = useSetup();
+
+  // Show loading while checking setup status
+  if (loading) {
+    return <LoadingScreen />;
+  }
+
+  // ============================================
+  // IF SETUP NOT COMPLETE - ONLY SHOW SETUP PAGE
+  // ============================================
+  if (!setupComplete) {
+    return (
+      <Routes>
+        <Route path="/" element={<SuperAdminSetup />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    );
+  }
+
+  // ============================================
+  // SETUP COMPLETE - NORMAL ROUTES
+  // ============================================
   return (
     <Routes>
-      <Route path="/" element={<Navigate to="/login" replace />} />
-      <Route path="/login" element={<Login />} />
+      {/* ==================== PUBLIC ROUTES ==================== */}
+      <Route 
+        path="/login" 
+        element={
+          <PublicRoute>
+            <Login />
+          </PublicRoute>
+        } 
+      />
+      
+      <Route 
+        path="/forgot-password" 
+        element={
+          <PublicRoute>
+            <ForgotPassword />
+          </PublicRoute>
+        } 
+      />
+      
+      <Route 
+        path="/register" 
+        element={
+          <PublicRoute>
+            <Register />
+          </PublicRoute>
+        } 
+      />
+      
+      <Route path="/reset-password" element={<ResetPassword />} />
 
-      <Route
-        path="/superadmin"
+      {/* ==================== SUPER ADMIN ==================== */}
+      <Route 
+        path="/superadmin" 
         element={
           <RoleBasedRoute allowedRoles={["superadmin"]}>
-            <SuperAdminDashboard />
+            <SuperAdminLayout />
           </RoleBasedRoute>
         }
-      />
+      >
+        <Route index element={<Navigate to="dashboard" replace />} />
+        <Route path="dashboard" element={<SuperAdminDashboard />} />
+        <Route path="users" element={<SuperAdminUsers />} />
+        <Route path="stores" element={<SuperAdminStores />} />
+        <Route path="create-store" element={<SuperAdminCreateStore />} />
+        <Route path="login-logs" element={<SuperAdminLoginLogs />} />
+      </Route>
 
-      <Route
-        path="/admin"
+      {/* ==================== ADMIN ==================== */}
+      <Route 
+        path="/admin" 
         element={
-          <RoleBasedRoute allowedRoles={["admin"]}>
-            <AdminDashboard />
+          <RoleBasedRoute allowedRoles={["admin", "superadmin"]}>
+            <AdminLayout />
           </RoleBasedRoute>
         }
-      />
+      >
+        <Route index element={<Navigate to="dashboard" replace />} />
+        <Route path="dashboard" element={<AdminDashboard />} />
+      </Route>
 
-      <Route
-        path="/manager"
+      {/* ==================== MANAGER ==================== */}
+      <Route 
+        path="/manager" 
         element={
           <RoleBasedRoute allowedRoles={["manager"]}>
-            <ManagerDashboard />
+            <ManagerLayout />
           </RoleBasedRoute>
         }
-      />
+      >
+        <Route index element={<Navigate to="dashboard" replace />} />
+        <Route path="dashboard" element={<ManagerDashboard />} />
+      </Route>
 
-      <Route
-        path="/biller"
-        element={
-          <RoleBasedRoute allowedRoles={["biller"]}>
-            <BillerDashboard />
-          </RoleBasedRoute>
-        }
-      />
-
-      <Route
-        path="/cashier"
+      {/* ==================== CASHIER ==================== */}
+      <Route 
+        path="/cashier" 
         element={
           <RoleBasedRoute allowedRoles={["cashier"]}>
-            <CashierDashboard />
+            <CashierLayout />
           </RoleBasedRoute>
         }
-      />
+      >
+        <Route index element={<Navigate to="dashboard" replace />} />
+        <Route path="dashboard" element={<CashierDashboard />} />
+      </Route>
 
+      {/* ==================== BILLER ==================== */}
+      <Route 
+        path="/biller" 
+        element={
+          <RoleBasedRoute allowedRoles={["biller"]}>
+            <BillerLayout />
+          </RoleBasedRoute>
+        }
+      >
+        <Route index element={<Navigate to="dashboard" replace />} />
+        <Route path="dashboard" element={<BillerDashboard />} />
+      </Route>
+
+      {/* ==================== DEFAULT ROUTES ==================== */}
+      <Route path="/" element={<Navigate to="/login" replace />} />
       <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>
   );

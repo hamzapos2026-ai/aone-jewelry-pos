@@ -1,4 +1,75 @@
 {
+  "common": {
+    "appName": "A ONE JEWELRY",
+    "tagline": "Point of Sale",
+    "search": "Search...",
+    "notifications": "Notifications",
+    "profile": "Profile",
+    "settings": "Settings",
+    "logout": "Logout",
+    "language": "Language",
+    "theme": "Theme",
+    "online": "Online",
+    "offline": "Offline",
+    "version": "Version",
+    "viewAll": "View All",
+    "markAllRead": "Mark all as read",
+    "noNotifications": "No notifications",
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "add": "Add",
+    "update": "Update",
+    "close": "Close",
+    "confirm": "Confirm",
+    "yes": "Yes",
+    "no": "No",
+    "loading": "Loading...",
+    "required": "Required"
+  },
+  
+  "sidebar": {
+    "dashboard": "Dashboard",
+    "pos": "Point of Sale",
+    "products": "Products",
+    "categories": "Categories",
+    "inventory": "Inventory",
+    "sales": "Sales",
+    "transactions": "Transactions",
+    "bills": "Bills",
+    "customers": "Customers",
+    "reports": "Reports",
+    "users": "Users",
+    "settings": "Settings",
+    "stores": "Stores",
+    "subscription": "Subscription",
+    "system": "System",
+    "collapse": "Collapse",
+    "expand": "Expand",
+    "organizations": "Organizations",
+    "analytics": "Analytics",
+    "logs": "System Logs",
+    "khata": "Khata Book",
+    "cashflow": "Cash Flow"
+  },
+  
+  "header": {
+    "welcome": "Welcome back",
+    "searchPlaceholder": "Search anything...",
+    "newSale": "New Sale",
+    "quickActions": "Quick Actions"
+  },
+  
+  "footer": {
+    "copyright": "© 2024 A ONE JEWELRY. All rights reserved.",
+    "support": "Support",
+    "documentation": "Docs",
+    "privacy": "Privacy",
+    "terms": "Terms of Service",
+    "madeWith": "Made with"
+  },
+  
   "login": {
     "title": "A ONE JEWELRY",
     "subtitle": "Premium Point of Sale System",
@@ -7,9 +78,69 @@
     "password": "Password",
     "remember": "Remember Me",
     "forgot": "Forgot Password?",
-    "button": "Secure Login",
-    "loading": "Please wait..."
+    "button": "Sign In",
+    "loading": "Please wait...",
+    "noAccount": "Don't have an account?",
+    "register": "Create Account"
   },
+
+  "register": {
+    "title": "Create Account",
+    "subtitle": "Join A ONE Jewelry POS System",
+    "name": "Full Name",
+    "email": "Email Address",
+    "phone": "Phone Number (Optional)",
+    "password": "Password",
+    "confirmPassword": "Confirm Password",
+    "selectRole": "Select Role",
+    "selectStore": "Select Store",
+    "terms": "I agree to the Terms of Service and Privacy Policy",
+    "button": "Create Account",
+    "loading": "Creating account...",
+    "haveAccount": "Already have an account?",
+    "login": "Sign In",
+    "passwordStrength": "Password Strength",
+    "weak": "Weak",
+    "medium": "Medium",
+    "strong": "Strong",
+    "passwordRules": {
+      "length": "At least 8 characters",
+      "uppercase": "One uppercase letter",
+      "lowercase": "One lowercase letter",
+      "number": "One number",
+      "special": "One special character"
+    }
+  },
+
+  "forgot": {
+    "title": "Forgot Password?",
+    "subtitle": "Enter your email to receive a reset link",
+    "email": "Email Address",
+    "button": "Send Reset Link",
+    "loading": "Sending...",
+    "backToLogin": "Back to Login",
+    "successTitle": "Email Sent!",
+    "successMessage": "Check your inbox for the reset link",
+    "checkSpam": "Don't forget to check your spam folder",
+    "tryAgain": "Try Again",
+    "resendIn": "Resend in"
+  },
+
+  "reset": {
+    "title": "Reset Password",
+    "subtitle": "Enter your new password",
+    "password": "New Password",
+    "confirmPassword": "Confirm New Password",
+    "button": "Reset Password",
+    "loading": "Resetting...",
+    "successTitle": "Password Reset!",
+    "successMessage": "You can now login with your new password",
+    "goToLogin": "Go to Login",
+    "invalidTitle": "Invalid or Expired Link",
+    "invalidMessage": "This password reset link is invalid or has expired.",
+    "requestNew": "Request New Link"
+  },
+  
   "roles": {
     "superadmin": "Super Admin",
     "admin": "Admin",
@@ -17,15 +148,105 @@
     "cashier": "Cashier",
     "biller": "Biller"
   },
+  
   "messages": {
     "success": "Login Successful",
     "error": "Invalid Credentials",
-    "roleMismatch": "Selected role does not match",
-    "resetSent": "Reset link sent to email",
-    "enterEmail": "Enter your registered email"
+    "roleMismatch": "Selected role does not match your account",
+    "resetSent": "Password reset link sent to your email",
+    "enterEmail": "Please enter a valid email address",
+    "logoutSuccess": "Logged out successfully",
+    "welcome": "Welcome back!",
+    "registerSuccess": "Account created successfully!",
+    "emailExists": "Email already exists",
+    "passwordMismatch": "Passwords do not match",
+    "weakPassword": "Password is too weak",
+    "registerError": "Registration failed. Please try again.",
+    "verifyEmail": "Please verify your email to activate your account",
+    "invalidEmail": "Please enter a valid email address",
+    "userNotFound": "No account found with this email",
+    "tooManyRequests": "Too many requests. Please wait and try again.",
+    "passwordChanged": "Password changed successfully!",
+    "emailVerificationSent": "Verification email sent",
+    "accountCreated": "Your account has been created",
+    "checkEmail": "Please check your email",
+    "sessionExpired": "Your session has expired. Please login again.",
+    "unauthorized": "You are not authorized to access this page",
+    "networkError": "Network error. Please check your connection.",
+    "somethingWentWrong": "Something went wrong. Please try again."
   },
+  
   "extra": {
     "online": "System Online",
-    "version": "Version"
+    "version": "Version",
+    "ssl": "SSL Secured",
+    "securedBy": "Secured by Firebase",
+    "poweredBy": "Powered by"
+  },
+
+  "notifications": {
+    "newOrder": "New order received",
+    "lowStock": "Low stock alert",
+    "paymentConfirmed": "Payment confirmed",
+    "newCustomer": "New customer registered",
+    "newUser": "New user registered",
+    "systemUpdate": "System update available",
+    "backupCompleted": "Backup completed successfully",
+    "licenseExpiring": "License expiring soon"
+  },
+
+  "validation": {
+    "required": "This field is required",
+    "email": "Please enter a valid email",
+    "phone": "Please enter a valid phone number",
+    "minLength": "Minimum {{min}} characters required",
+    "maxLength": "Maximum {{max}} characters allowed",
+    "passwordMatch": "Passwords must match",
+    "invalidFormat": "Invalid format",
+    "selectOption": "Please select an option"
+  },
+
+  "dashboard": {
+    "title": "Dashboard",
+    "welcome": "Welcome back",
+    "stats": {
+      "totalSales": "Total Sales",
+      "todaySales": "Today's Sales",
+      "totalOrders": "Total Orders",
+      "totalCustomers": "Total Customers",
+      "lowStock": "Low Stock Items",
+      "revenue": "Revenue",
+      "profit": "Profit",
+      "activeUsers": "Active Users"
+    },
+    "quickActions": {
+      "title": "Quick Actions",
+      "newSale": "New Sale",
+      "addProduct": "Add Product",
+      "viewReports": "View Reports",
+      "manageInventory": "Manage Inventory"
+    }
+  },
+
+  "setup": {
+    "title": "First Time Setup",
+    "subtitle": "Create your super admin account",
+    "step1Title": "Personal Information",
+    "step1Subtitle": "Tell us about yourself",
+    "step2Title": "Business Details",
+    "step2Subtitle": "Set up your business information",
+    "fullName": "Full Name",
+    "email": "Email Address",
+    "password": "Password",
+    "confirmPassword": "Confirm Password",
+    "businessName": "Business Name",
+    "storeName": "Store Name",
+    "storeLocation": "Store Location",
+    "button": "Create Super Admin",
+    "loading": "Setting up...",
+    "success": "Setup completed successfully!",
+    "error": "Setup failed. Please try again.",
+    "next": "Next",
+    "previous": "Previous"
   }
 }

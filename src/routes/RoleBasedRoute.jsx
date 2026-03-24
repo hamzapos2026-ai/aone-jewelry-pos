@@ -1,36 +1,129 @@
-// ======================================================
-// RoleBasedRoute.jsx
-// ======================================================
-// Ye component:
-// 1. Login check karta hai
-// 2. Role check karta hai
-// 3. Store isolation enforce karta hai
-// ======================================================
-
-import { Navigate } from "react-router-dom";
+import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { useStore } from "../context/StoreContext";
+import { useSetup } from "../context/SetupContext";
+import { useEffect, useState } from "react";
 
-const RoleBasedRoute = ({ children, allowedRoles }) => {
+// ==========================================
+// Loading Screen
+// ==========================================
+const LoadingScreen = ({ text = "Loading..." }) => (
+  <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 via-black to-yellow-900">
+    <div className="text-center">
+      <div className="w-16 h-16 border-4 border-yellow-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
+      <p className="mt-4 text-yellow-400 font-semibold text-lg">{text}</p>
+    </div>
+  </div>
+);
 
-  const { user } = useAuth();
-  const { store } = useStore();
+// ==========================================
+// Role Dashboard Paths
+// ==========================================
+const ROLE_DASHBOARD_PATHS = {
+  superadmin: "/superadmin/dashboard",
+  admin: "/admin/dashboard",
+  manager: "/manager/dashboard",
+  cashier: "/cashier/dashboard",
+  biller: "/biller/dashboard",
+};
 
-  // ✅ Not logged in
-  if (!user) {
-    return <Navigate to="/login" />;
+// ==========================================
+// Public Route
+// ==========================================
+export const PublicRoute = ({ children }) => {
+  const { currentUser, userData, loading } = useAuth();
+  const { setupComplete, loading: setupLoading } = useSetup();
+
+  if (loading || setupLoading) {
+    return <LoadingScreen text="Checking session..." />;
   }
 
-  // ✅ Role check
-  if (!allowedRoles.includes(user.role)) {
-    return <Navigate to="/login" />;
+  if (setupComplete === false) {
+    console.log("⚠️ PublicRoute: Setup not complete, redirecting to /");
+    return <Navigate to="/" replace />;
   }
 
-  // ✅ Store isolation check (except superadmin)
-  if (user.role !== "superadmin" && store && user.storeId !== store.id) {
-    return <Navigate to="/login" />;
+  // If firebase user exists but userData still loading, wait
+  if (currentUser && !userData) {
+    return <LoadingScreen text="Loading user profile..." />;
   }
 
+  if (currentUser && userData?.role) {
+    const redirectPath = ROLE_DASHBOARD_PATHS[userData.role] || "/login";
+    console.log("🔄 PublicRoute: User already logged in, redirecting to:", redirectPath);
+    return <Navigate to={redirectPath} replace />;
+  }
+
+  return children;
+};
+
+// ==========================================
+// Role Based Route
+// ==========================================
+export const RoleBasedRoute = ({ children, allowedRoles = [] }) => {
+  const { currentUser, userData, loading } = useAuth();
+  const { setupComplete, loading: setupLoading } = useSetup();
+  const location = useLocation();
+
+  const [profileWaitDone, setProfileWaitDone] = useState(false);
+
+  // Give Firestore profile a little time after auth is ready
+  useEffect(() => {
+    let timer;
+
+    if (currentUser && !userData && !loading) {
+      setProfileWaitDone(false);
+      timer = setTimeout(() => {
+        setProfileWaitDone(true);
+      }, 2000);
+    } else {
+      setProfileWaitDone(false);
+    }
+
+    return () => clearTimeout(timer);
+  }, [currentUser, userData, loading]);
+
+  // Main loading
+  if (loading || setupLoading) {
+    return <LoadingScreen text="Checking access..." />;
+  }
+
+  // Setup incomplete
+  if (setupComplete === false) {
+    console.log("⚠️ RoleBasedRoute: Setup not complete, redirecting to /");
+    return <Navigate to="/" replace />;
+  }
+
+  // No logged-in user
+  if (!currentUser) {
+    console.log("⚠️ RoleBasedRoute: User not logged in, redirecting to /login");
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  // Logged in but Firestore profile still loading
+  if (currentUser && !userData && !profileWaitDone) {
+    console.log("⏳ RoleBasedRoute: Waiting for user data...");
+    return <LoadingScreen text="Loading user data..." />;
+  }
+
+  // After waiting, still no userData
+  if (currentUser && !userData && profileWaitDone) {
+    console.error("❌ RoleBasedRoute: User data not found after wait");
+    return <Navigate to="/login" replace />;
+  }
+
+  // Role check
+  if (allowedRoles.length > 0 && !allowedRoles.includes(userData.role)) {
+    console.warn("⚠️ RoleBasedRoute: Access denied!");
+    console.warn(`   User role: ${userData.role}`);
+    console.warn(`   Allowed roles: ${allowedRoles.join(", ")}`);
+
+    const redirectPath = ROLE_DASHBOARD_PATHS[userData.role] || "/login";
+    console.log("🔄 RoleBasedRoute: Redirecting to user's dashboard:", redirectPath);
+
+    return <Navigate to={redirectPath} replace />;
+  }
+
+  console.log(`✅ RoleBasedRoute: Access granted for role: ${userData.role}`);
   return children;
 };
 

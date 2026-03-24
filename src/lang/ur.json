@@ -1,15 +1,146 @@
 {
+  "common": {
+    "appName": "اے ون جیولری",
+    "tagline": "پوائنٹ آف سیل",
+    "search": "تلاش کریں...",
+    "notifications": "اطلاعات",
+    "profile": "پروفائل",
+    "settings": "ترتیبات",
+    "logout": "لاگ آؤٹ",
+    "language": "زبان",
+    "theme": "تھیم",
+    "online": "آن لائن",
+    "offline": "آف لائن",
+    "version": "ورژن",
+    "viewAll": "سب دیکھیں",
+    "markAllRead": "سب پڑھا ہوا نشان زد کریں",
+    "noNotifications": "کوئی اطلاعات نہیں",
+    "save": "محفوظ کریں",
+    "cancel": "منسوخ کریں",
+    "delete": "حذف کریں",
+    "edit": "ترمیم",
+    "add": "شامل کریں",
+    "update": "اپ ڈیٹ",
+    "close": "بند کریں",
+    "confirm": "تصدیق کریں",
+    "yes": "ہاں",
+    "no": "نہیں",
+    "loading": "لوڈ ہو رہا ہے...",
+    "required": "ضروری"
+  },
+  
+  "sidebar": {
+    "dashboard": "ڈیش بورڈ",
+    "pos": "پوائنٹ آف سیل",
+    "products": "مصنوعات",
+    "categories": "اقسام",
+    "inventory": "انوینٹری",
+    "sales": "فروخت",
+    "transactions": "لین دین",
+    "bills": "بل",
+    "customers": "گاہک",
+    "reports": "رپورٹس",
+    "users": "صارفین",
+    "settings": "ترتیبات",
+    "stores": "سٹورز",
+    "subscription": "سبسکرپشن",
+    "system": "سسٹم",
+    "collapse": "سمیٹیں",
+    "expand": "پھیلائیں",
+    "organizations": "تنظیمیں",
+    "analytics": "تجزیات",
+    "logs": "سسٹم لاگز",
+    "khata": "کھاتہ بک",
+    "cashflow": "نقد رقم کا بہاؤ"
+  },
+  
+  "header": {
+    "welcome": "خوش آمدید",
+    "searchPlaceholder": "کچھ بھی تلاش کریں...",
+    "newSale": "نئی فروخت",
+    "quickActions": "فوری کارروائیاں"
+  },
+  
+  "footer": {
+    "copyright": "© 2024 اے ون جیولری۔ جملہ حقوق محفوظ ہیں۔",
+    "support": "سپورٹ",
+    "documentation": "دستاویزات",
+    "privacy": "رازداری",
+    "terms": "شرائط و ضوابط",
+    "madeWith": "بنایا گیا"
+  },
+  
   "login": {
     "title": "اے ون جیولری",
     "subtitle": "پریمیم پوائنٹ آف سیل سسٹم",
-    "loginAs": "بطور لاگ ان",
+    "loginAs": "بطور لاگ ان کریں",
     "email": "ای میل یا صارف نام",
     "password": "پاس ورڈ",
     "remember": "مجھے یاد رکھیں",
     "forgot": "پاس ورڈ بھول گئے؟",
-    "button": "محفوظ لاگ ان",
-    "loading": "براہ کرم انتظار کریں..."
+    "button": "سائن ان",
+    "loading": "براہ کرم انتظار کریں...",
+    "noAccount": "اکاؤنٹ نہیں ہے؟",
+    "register": "اکاؤنٹ بنائیں"
   },
+
+  "register": {
+    "title": "اکاؤنٹ بنائیں",
+    "subtitle": "اے ون جیولری پی او ایس سسٹم میں شامل ہوں",
+    "name": "پورا نام",
+    "email": "ای میل ایڈریس",
+    "phone": "فون نمبر (اختیاری)",
+    "password": "پاس ورڈ",
+    "confirmPassword": "پاس ورڈ کی تصدیق کریں",
+    "selectRole": "کردار منتخب کریں",
+    "selectStore": "اسٹور منتخب کریں",
+    "terms": "میں شرائط و ضوابط اور رازداری کی پالیسی سے اتفاق کرتا ہوں",
+    "button": "اکاؤنٹ بنائیں",
+    "loading": "اکاؤنٹ بنایا جا رہا ہے...",
+    "haveAccount": "پہلے سے اکاؤنٹ ہے؟",
+    "login": "سائن ان",
+    "passwordStrength": "پاس ورڈ کی طاقت",
+    "weak": "کمزور",
+    "medium": "درمیانی",
+    "strong": "مضبوط",
+    "passwordRules": {
+      "length": "کم از کم 8 حروف",
+      "uppercase": "ایک بڑا حرف",
+      "lowercase": "ایک چھوٹا حرف",
+      "number": "ایک نمبر",
+      "special": "ایک خاص کریکٹر"
+    }
+  },
+
+  "forgot": {
+    "title": "پاس ورڈ بھول گئے؟",
+    "subtitle": "ری سیٹ لنک حاصل کرنے کے لیے اپنا ای میل درج کریں",
+    "email": "ای میل ایڈریس",
+    "button": "ری سیٹ لنک بھیجیں",
+    "loading": "بھیجا جا رہا ہے...",
+    "backToLogin": "لاگ ان پر واپس جائیں",
+    "successTitle": "ای میل بھیج دی گئی!",
+    "successMessage": "ری سیٹ لنک کے لیے اپنا ان باکس چیک کریں",
+    "checkSpam": "اپنا سپام فولڈر چیک کرنا نہ بھولیں",
+    "tryAgain": "دوبارہ کوشش کریں",
+    "resendIn": "دوبارہ بھیجیں"
+  },
+
+  "reset": {
+    "title": "پاس ورڈ ری سیٹ کریں",
+    "subtitle": "اپنا نیا پاس ورڈ درج کریں",
+    "password": "نیا پاس ورڈ",
+    "confirmPassword": "نئے پاس ورڈ کی تصدیق کریں",
+    "button": "پاس ورڈ ری سیٹ کریں",
+    "loading": "ری سیٹ ہو رہا ہے...",
+    "successTitle": "پاس ورڈ ری سیٹ ہو گیا!",
+    "successMessage": "اب آپ اپنے نئے پاس ورڈ سے لاگ ان کر سکتے ہیں",
+    "goToLogin": "لاگ ان پر جائیں",
+    "invalidTitle": "غلط یا میعاد ختم لنک",
+    "invalidMessage": "یہ پاس ورڈ ری سیٹ لنک غلط ہے یا اس کی میعاد ختم ہو گئی ہے۔",
+    "requestNew": "نیا لنک طلب کریں"
+  },
+  
   "roles": {
     "superadmin": "سپر ایڈمن",
     "admin": "ایڈمن",
@@ -17,15 +148,105 @@
     "cashier": "کیشیئر",
     "biller": "بلر"
   },
+  
   "messages": {
     "success": "لاگ ان کامیاب",
     "error": "غلط معلومات",
-    "roleMismatch": "منتخب کردار مماثل نہیں",
-    "resetSent": "ری سیٹ لنک ای میل پر بھیج دیا گیا",
-    "enterEmail": "اپنی ای میل درج کریں"
+    "roleMismatch": "منتخب کردہ کردار آپ کے اکاؤنٹ سے مماثل نہیں",
+    "resetSent": "پاس ورڈ ری سیٹ لنک آپ کے ای میل پر بھیج دیا گیا",
+    "enterEmail": "براہ کرم درست ای میل ایڈریس درج کریں",
+    "logoutSuccess": "کامیابی سے لاگ آؤٹ",
+    "welcome": "خوش آمدید!",
+    "registerSuccess": "اکاؤنٹ کامیابی سے بنایا گیا!",
+    "emailExists": "ای میل پہلے سے موجود ہے",
+    "passwordMismatch": "پاس ورڈ مماثل نہیں ہیں",
+    "weakPassword": "پاس ورڈ بہت کمزور ہے",
+    "registerError": "رجسٹریشن ناکام۔ دوبارہ کوشش کریں۔",
+    "verifyEmail": "اپنے اکاؤنٹ کو فعال کرنے کے لیے اپنا ای میل تصدیق کریں",
+    "invalidEmail": "براہ کرم درست ای میل ایڈریس درج کریں",
+    "userNotFound": "اس ای میل کے ساتھ کوئی اکاؤنٹ نہیں ملا",
+    "tooManyRequests": "بہت زیادہ درخواستیں۔ انتظار کریں اور دوبارہ کوشش کریں۔",
+    "passwordChanged": "پاس ورڈ کامیابی سے تبدیل ہو گیا!",
+    "emailVerificationSent": "تصدیقی ای میل بھیج دی گئی",
+    "accountCreated": "آپ کا اکاؤنٹ بن گیا ہے",
+    "checkEmail": "براہ کرم اپنا ای میل چیک کریں",
+    "sessionExpired": "آپ کا سیشن ختم ہو گیا۔ دوبارہ لاگ ان کریں۔",
+    "unauthorized": "آپ کو اس صفحے تک رسائی کی اجازت نہیں ہے",
+    "networkError": "نیٹ ورک کی خرابی۔ اپنا کنکشن چیک کریں۔",
+    "somethingWentWrong": "کچھ غلط ہو گیا۔ دوبارہ کوشش کریں۔"
   },
+  
   "extra": {
     "online": "سسٹم آن لائن",
-    "version": "ورژن"
+    "version": "ورژن",
+    "ssl": "ایس ایس ایل محفوظ",
+    "securedBy": "فائر بیس سے محفوظ",
+    "poweredBy": "تقویت یافتہ از"
+  },
+
+  "notifications": {
+    "newOrder": "نیا آرڈر موصول ہوا",
+    "lowStock": "کم اسٹاک الرٹ",
+    "paymentConfirmed": "ادائیگی کی تصدیق",
+    "newCustomer": "نیا گاہک رجسٹرڈ",
+    "newUser": "نیا صارف رجسٹرڈ",
+    "systemUpdate": "سسٹم اپ ڈیٹ دستیاب",
+    "backupCompleted": "بیک اپ کامیابی سے مکمل",
+    "licenseExpiring": "لائسنس جلد ختم ہو رہا ہے"
+  },
+
+  "validation": {
+    "required": "یہ فیلڈ ضروری ہے",
+    "email": "براہ کرم درست ای میل درج کریں",
+    "phone": "براہ کرم درست فون نمبر درج کریں",
+    "minLength": "کم از کم {{min}} حروف درکار ہیں",
+    "maxLength": "زیادہ سے زیادہ {{max}} حروف کی اجازت ہے",
+    "passwordMatch": "پاس ورڈ مماثل ہونے چاہئیں",
+    "invalidFormat": "غلط فارمیٹ",
+    "selectOption": "براہ کرم ایک آپشن منتخب کریں"
+  },
+
+  "dashboard": {
+    "title": "ڈیش بورڈ",
+    "welcome": "خوش آمدید",
+    "stats": {
+      "totalSales": "کل فروخت",
+      "todaySales": "آج کی فروخت",
+      "totalOrders": "کل آرڈرز",
+      "totalCustomers": "کل گاہک",
+      "lowStock": "کم اسٹاک اشیاء",
+      "revenue": "آمدنی",
+      "profit": "منافع",
+      "activeUsers": "فعال صارفین"
+    },
+    "quickActions": {
+      "title": "فوری کارروائیاں",
+      "newSale": "نئی فروخت",
+      "addProduct": "مصنوعات شامل کریں",
+      "viewReports": "رپورٹس دیکھیں",
+      "manageInventory": "انوینٹری کا نظم کریں"
+    }
+  },
+
+  "setup": {
+    "title": "پہلی بار سیٹ اپ",
+    "subtitle": "اپنا سپر ایڈمن اکاؤنٹ بنائیں",
+    "step1Title": "ذاتی معلومات",
+    "step1Subtitle": "ہمیں اپنے بارے میں بتائیں",
+    "step2Title": "کاروباری تفصیلات",
+    "step2Subtitle": "اپنی کاروباری معلومات سیٹ کریں",
+    "fullName": "پورا نام",
+    "email": "ای میل ایڈریس",
+    "password": "پاس ورڈ",
+    "confirmPassword": "پاس ورڈ کی تصدیق کریں",
+    "businessName": "کاروبار کا نام",
+    "storeName": "سٹور کا نام",
+    "storeLocation": "سٹور کا مقام",
+    "button": "سپر ایڈمن بنائیں",
+    "loading": "سیٹ اپ ہو رہا ہے...",
+    "success": "سیٹ اپ کامیابی سے مکمل ہو گیا!",
+    "error": "سیٹ اپ ناکام ہو گیا۔ براہ کرم دوبارہ کوشش کریں۔",
+    "next": "اگلا",
+    "previous": "پچھلا"
   }
 }
