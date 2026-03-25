@@ -1,7 +1,7 @@
 // src/pages/auth/Login.jsx
 
 import { useState, useEffect, useMemo } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import {
   Lock,
   User,
@@ -21,8 +21,8 @@ import {
   BarChart3,
   Wallet,
   FileText,
-  UserPlus,
   AlertCircle,
+  HelpCircle,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import toast from "react-hot-toast";
@@ -202,11 +202,8 @@ const Login = () => {
         email: s?.login?.email || "Email or Username",
         password: s?.login?.password || "Password",
         remember: s?.login?.remember || "Remember Me",
-        forgot: s?.login?.forgot || "Forgot Password?",
         button: s?.login?.button || "Sign In",
         loading: s?.login?.loading || "Please wait...",
-        noAccount: s?.login?.noAccount || "Don't have an account?",
-        register: s?.login?.register || "Create Account",
       },
       roles: {
         superadmin: s?.roles?.superadmin || "Super Admin",
@@ -224,6 +221,10 @@ const Login = () => {
         online: s?.extra?.online || "Online",
         ssl: s?.extra?.ssl || "SSL",
         version: s?.extra?.version || "v2.0",
+      },
+      help: {
+        title: s?.help?.title || "Need Help?",
+        message: s?.help?.message || "Contact Super Admin for account creation or password reset",
       },
     };
   }, [language]);
@@ -246,6 +247,16 @@ const Login = () => {
     color: "#fbbf24",
     border: "1px solid rgba(251,191,36,0.3)",
   };
+
+  // Load remembered email
+  useEffect(() => {
+    const rememberedEmail = localStorage.getItem("userEmail");
+    const isRemembered = localStorage.getItem("rememberMe") === "true";
+    if (isRemembered && rememberedEmail) {
+      setIdentifier(rememberedEmail);
+      setRemember(true);
+    }
+  }, []);
 
   // Check setup on mount
   useEffect(() => {
@@ -303,9 +314,8 @@ const Login = () => {
       const userDoc = await getDoc(doc(db, "users", firebaseUser.uid));
       
       if (!userDoc.exists()) {
-        // User document not found - sign out and show error
         await signOut(auth);
-        setError("User profile not found. Please contact admin.");
+        setError("User profile not found. Please contact Super Admin.");
         toast.error("User profile not found!", { style: toastStyle });
         setLoading(false);
         return;
@@ -318,12 +328,11 @@ const Login = () => {
       console.log("🎭 Actual Role:", actualRole);
       console.log("🎭 Selected Role:", role);
 
-      // Step 3: ⭐ ROLE VALIDATION - Sign out if mismatch
+      // Step 3: ROLE VALIDATION - Sign out if mismatch
       if (actualRole !== role) {
         console.log("❌ Role mismatch detected!");
         console.log(`   Expected: ${role}, Actual: ${actualRole}`);
         
-        // Sign out immediately
         await signOut(auth);
         
         setError(`Role mismatch! Your account is "${actualRole.toUpperCase()}", but you selected "${role.toUpperCase()}". Please select the correct role.`);
@@ -348,7 +357,7 @@ const Login = () => {
       // Step 4: Check if user is active
       if (userDataFromDB.status === "inactive" || userDataFromDB.status === "suspended") {
         await signOut(auth);
-        setError("Your account is suspended. Please contact admin.");
+        setError("Your account is suspended. Please contact Super Admin.");
         toast.error("Account suspended!", { style: toastStyle });
         setLoading(false);
         return;
@@ -395,8 +404,8 @@ const Login = () => {
       console.error("❌ Login error:", err);
       
       const errorMessages = {
-        "auth/user-not-found": "No account found with this email",
-        "auth/wrong-password": "Incorrect password",
+        "auth/user-not-found": "No account found. Contact Super Admin.",
+        "auth/wrong-password": "Incorrect password. Contact Super Admin to reset.",
         "auth/invalid-email": "Invalid email address",
         "auth/too-many-requests": "Too many attempts. Please try again later",
         "auth/invalid-credential": "Invalid email or password",
@@ -433,7 +442,7 @@ const Login = () => {
         <div className="absolute inset-0 bg-[linear-gradient(rgba(251,191,36,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(251,191,36,0.03)_1px,transparent_1px)] bg-[size:50px_50px]" />
       </div>
 
-      {/* Header */}
+      {/* Header - SAME AS BEFORE */}
       <header
         className={`relative z-10 flex items-center justify-between px-6 py-4 border-b backdrop-blur-sm ${
           isDark
@@ -603,8 +612,8 @@ const Login = () => {
               required
             />
 
-            {/* Remember & Forgot */}
-            <div className="flex items-center justify-between pt-1 text-sm">
+            {/* Remember Me Only - REMOVED FORGOT PASSWORD LINK */}
+            <div className="flex items-center pt-1 text-sm">
               <label className="group flex cursor-pointer items-center gap-2.5">
                 <div
                   className={`relative flex h-5 w-5 items-center justify-center rounded border-2 transition-all ${
@@ -639,12 +648,6 @@ const Login = () => {
                   {t.login.remember}
                 </span>
               </label>
-              <Link
-                to="/forgot-password"
-                className="font-medium text-yellow-500 transition-colors hover:text-yellow-400"
-              >
-                {t.login.forgot}
-              </Link>
             </div>
 
             {/* Submit Button */}
@@ -669,21 +672,15 @@ const Login = () => {
             </motion.button>
           </form>
 
-          {/* Register Link */}
-          <div className={`mt-6 text-center text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}>
-            <span>{t.login.noAccount} </span>
-            <Link
-              to="/register"
-              className="inline-flex items-center gap-1.5 font-semibold text-yellow-500 hover:text-yellow-400"
-            >
-              <UserPlus size={16} />
-              {t.login.register}
-            </Link>
+          {/* REPLACED: Register Link with Help Message */}
+          <div className={`mt-5 flex items-center justify-center gap-2 text-xs ${isDark ? "text-gray-500" : "text-gray-500"}`}>
+            <HelpCircle size={14} className="text-yellow-500" />
+            <span>{t.help.message}</span>
           </div>
 
           {/* Footer */}
           <div
-            className={`mt-6 flex items-center justify-center gap-4 border-t pt-5 text-xs ${
+            className={`mt-5 flex items-center justify-center gap-4 border-t pt-5 text-xs ${
               isDark ? "border-yellow-500/20 text-gray-500" : "border-yellow-200 text-gray-500"
             }`}
           >
