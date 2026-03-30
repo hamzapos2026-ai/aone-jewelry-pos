@@ -2,6 +2,7 @@ import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useSetup } from "../context/SetupContext";
 import { useEffect, useState } from "react";
+import useNetworkStatus from "../hooks/useNetworkStatus";
 
 // ==========================================
 // Loading Screen
@@ -32,13 +33,18 @@ const ROLE_DASHBOARD_PATHS = {
 export const PublicRoute = ({ children }) => {
   const { currentUser, userData, loading } = useAuth();
   const { setupComplete, loading: setupLoading } = useSetup();
+  const isOnline = useNetworkStatus();
+
+  // Offline first
+  if (!isOnline) {
+    return <Navigate to="/offline" replace />;
+  }
 
   if (loading || setupLoading) {
     return <LoadingScreen text="Checking session..." />;
   }
 
   if (setupComplete === false) {
-    console.log("⚠️ PublicRoute: Setup not complete, redirecting to /");
     return <Navigate to="/" replace />;
   }
 
@@ -49,7 +55,6 @@ export const PublicRoute = ({ children }) => {
 
   if (currentUser && userData?.role) {
     const redirectPath = ROLE_DASHBOARD_PATHS[userData.role] || "/login";
-    console.log("🔄 PublicRoute: User already logged in, redirecting to:", redirectPath);
     return <Navigate to={redirectPath} replace />;
   }
 
@@ -63,10 +68,10 @@ export const RoleBasedRoute = ({ children, allowedRoles = [] }) => {
   const { currentUser, userData, loading } = useAuth();
   const { setupComplete, loading: setupLoading } = useSetup();
   const location = useLocation();
+  const isOnline = useNetworkStatus();
 
   const [profileWaitDone, setProfileWaitDone] = useState(false);
 
-  // Give Firestore profile a little time after auth is ready
   useEffect(() => {
     let timer;
 
@@ -82,6 +87,11 @@ export const RoleBasedRoute = ({ children, allowedRoles = [] }) => {
     return () => clearTimeout(timer);
   }, [currentUser, userData, loading]);
 
+  // Offline first
+  if (!isOnline) {
+    return <Navigate to="/offline" replace />;
+  }
+
   // Main loading
   if (loading || setupLoading) {
     return <LoadingScreen text="Checking access..." />;
@@ -89,41 +99,29 @@ export const RoleBasedRoute = ({ children, allowedRoles = [] }) => {
 
   // Setup incomplete
   if (setupComplete === false) {
-    console.log("⚠️ RoleBasedRoute: Setup not complete, redirecting to /");
     return <Navigate to="/" replace />;
   }
 
   // No logged-in user
   if (!currentUser) {
-    console.log("⚠️ RoleBasedRoute: User not logged in, redirecting to /login");
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
   // Logged in but Firestore profile still loading
   if (currentUser && !userData && !profileWaitDone) {
-    console.log("⏳ RoleBasedRoute: Waiting for user data...");
     return <LoadingScreen text="Loading user data..." />;
   }
 
   // After waiting, still no userData
   if (currentUser && !userData && profileWaitDone) {
-    console.error("❌ RoleBasedRoute: User data not found after wait");
     return <Navigate to="/login" replace />;
   }
 
   // Role check
   if (allowedRoles.length > 0 && !allowedRoles.includes(userData.role)) {
-    console.warn("⚠️ RoleBasedRoute: Access denied!");
-    console.warn(`   User role: ${userData.role}`);
-    console.warn(`   Allowed roles: ${allowedRoles.join(", ")}`);
-
-    const redirectPath = ROLE_DASHBOARD_PATHS[userData.role] || "/login";
-    console.log("🔄 RoleBasedRoute: Redirecting to user's dashboard:", redirectPath);
-
-    return <Navigate to={redirectPath} replace />;
+    return <Navigate to="/unauthorized" replace />;
   }
 
-  console.log(`✅ RoleBasedRoute: Access granted for role: ${userData.role}`);
   return children;
 };
 

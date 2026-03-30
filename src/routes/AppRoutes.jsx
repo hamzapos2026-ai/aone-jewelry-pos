@@ -1,5 +1,6 @@
 import { Routes, Route, Navigate } from "react-router-dom";
 import { useSetup } from "../context/SetupContext";
+import useNetworkStatus from "../hooks/useNetworkStatus";
 
 // ==================== SETUP ====================
 import SuperAdminSetup from "../pages/setup/SetupPage";
@@ -9,6 +10,9 @@ import Login from "../pages/auth/Login";
 import ForgotPassword from "../pages/auth/ForgotPassword";
 import Register from "../pages/auth/Register";
 import ResetPassword from "../pages/auth/ResetPassword";
+import Offline from "../pages/auth/Offline";
+import Unauthorized from "../pages/auth/Unauthorized";
+import NotFound from "../pages/auth/NotFound";
 
 // ==================== LAYOUTS ====================
 import AdminLayout from "../components/layout/AdminLayout";
@@ -44,6 +48,18 @@ const LoadingScreen = () => (
 // ==================== MAIN ROUTES ====================
 const AppRoutes = () => {
   const { setupComplete, loading } = useSetup();
+  const isOnline = useNetworkStatus();
+
+  // =========================
+  // OFFLINE FIRST PRIORITY
+  // =========================
+  if (!isOnline) {
+    return (
+      <Routes>
+        <Route path="*" element={<Offline />} />
+      </Routes>
+    );
+  }
 
   // Show loading while checking setup status
   if (loading) {
@@ -67,39 +83,43 @@ const AppRoutes = () => {
   // ============================================
   return (
     <Routes>
+      {/* ==================== SYSTEM ROUTES ==================== */}
+      <Route path="/offline" element={<Offline />} />
+      <Route path="/unauthorized" element={<Unauthorized />} />
+
       {/* ==================== PUBLIC ROUTES ==================== */}
-      <Route 
-        path="/login" 
+      <Route
+        path="/login"
         element={
           <PublicRoute>
             <Login />
           </PublicRoute>
-        } 
+        }
       />
-      
-      <Route 
-        path="/forgot-password" 
+
+      <Route
+        path="/forgot-password"
         element={
           <PublicRoute>
             <ForgotPassword />
           </PublicRoute>
-        } 
+        }
       />
-      
-      <Route 
-        path="/register" 
+
+      <Route
+        path="/register"
         element={
           <PublicRoute>
             <Register />
           </PublicRoute>
-        } 
+        }
       />
-      
+
       <Route path="/reset-password" element={<ResetPassword />} />
 
       {/* ==================== SUPER ADMIN ==================== */}
-      <Route 
-        path="/superadmin" 
+      <Route
+        path="/superadmin"
         element={
           <RoleBasedRoute allowedRoles={["superadmin"]}>
             <SuperAdminLayout />
@@ -115,8 +135,8 @@ const AppRoutes = () => {
       </Route>
 
       {/* ==================== ADMIN ==================== */}
-      <Route 
-        path="/admin" 
+      <Route
+        path="/admin"
         element={
           <RoleBasedRoute allowedRoles={["admin", "superadmin"]}>
             <AdminLayout />
@@ -128,8 +148,8 @@ const AppRoutes = () => {
       </Route>
 
       {/* ==================== MANAGER ==================== */}
-      <Route 
-        path="/manager" 
+      <Route
+        path="/manager"
         element={
           <RoleBasedRoute allowedRoles={["manager"]}>
             <ManagerLayout />
@@ -141,8 +161,8 @@ const AppRoutes = () => {
       </Route>
 
       {/* ==================== CASHIER ==================== */}
-      <Route 
-        path="/cashier" 
+      <Route
+        path="/cashier"
         element={
           <RoleBasedRoute allowedRoles={["cashier"]}>
             <CashierLayout />
@@ -154,8 +174,8 @@ const AppRoutes = () => {
       </Route>
 
       {/* ==================== BILLER ==================== */}
-      <Route 
-        path="/biller" 
+      <Route
+        path="/biller"
         element={
           <RoleBasedRoute allowedRoles={["biller"]}>
             <BillerLayout />
@@ -168,7 +188,7 @@ const AppRoutes = () => {
 
       {/* ==================== DEFAULT ROUTES ==================== */}
       <Route path="/" element={<Navigate to="/login" replace />} />
-      <Route path="*" element={<Navigate to="/login" replace />} />
+      <Route path="*" element={<NotFound />} />
     </Routes>
   );
 };

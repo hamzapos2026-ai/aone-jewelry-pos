@@ -23,7 +23,7 @@ const CashierLayout = () => {
   }, [location.pathname]);
 
   return (
-    <div className={`min-h-screen ${isDark ? "bg-gray-950" : "bg-gray-900"}`} dir={isRTL ? "rtl" : "ltr"}>
+    <div className={`min-h-screen ${isDark ? "bg-gold-950" : "bg-gray-900"}`} dir={isRTL ? "rtl" : "ltr"}>
       <div className="pointer-events-none fixed inset-0">
         <div className="absolute left-1/4 top-0 h-96 w-96 rounded-full bg-yellow-500/5 blur-3xl" />
         <div className="absolute bottom-0 right-1/4 h-80 w-80 rounded-full bg-amber-500/5 blur-3xl" />
