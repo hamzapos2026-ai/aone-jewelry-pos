@@ -1,0 +1,14 @@
+{
+  "name": "firebase-functions",
+  "description": "Firebase Cloud Functions for aone-jewelry-pos",
+  "scripts": {
+    "lint": "eslint ."
+  },
+  "engines": {
+    "node": "18"
+  },
+  "dependencies": {
+    "firebase-admin": "^11.10.1",
+    "firebase-functions": "^4.5.0"
+  }
+}

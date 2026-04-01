@@ -9,13 +9,11 @@ import toast from "react-hot-toast";
 import { useAuth } from "../../context/AuthContext";
 import { useTheme } from "../../hooks/useTheme";
 import { useLanguage } from "../../hooks/useLanguage";
-import { db, auth } from "../../services/firebase";
+import { db, auth, getSecondaryAuth } from "../../services/firebase";
 import { 
   collection, getDocs, doc, setDoc, updateDoc, deleteDoc, serverTimestamp, query, orderBy 
 } from "firebase/firestore";
-import { 
-  createUserWithEmailAndPassword, sendPasswordResetEmail, signInWithEmailAndPassword 
-} from "firebase/auth";
+import { createUserWithEmailAndPassword, sendPasswordResetEmail } from "firebase/auth";
 
 const roleIcons = { 
   superadmin: Crown, 
@@ -67,7 +65,7 @@ const Modal = ({ isOpen, onClose, children, title, isDark }) => (
 );
 
 // User Form Modal
-const UserFormModal = ({ isOpen, onClose, user, onSave, isDark, existingEmails, currentUserEmail }) => {
+const UserFormModal = ({ isOpen, onClose, user, onSave, isDark, existingEmails }) => {
   const [form, setForm] = useState({
     name: "",
     email: "",
@@ -78,8 +76,6 @@ const UserFormModal = ({ isOpen, onClose, user, onSave, isDark, existingEmails, 
   const [showPass, setShowPass] = useState(false);
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState({});
-  const [adminPassword, setAdminPassword] = useState("");
-  const [showAdminPass, setShowAdminPass] = useState(false);
   const isEdit = !!user;
 
   useEffect(() => {
@@ -95,7 +91,6 @@ const UserFormModal = ({ isOpen, onClose, user, onSave, isDark, existingEmails, 
       setForm({ name: "", email: "", password: "", role: "cashier", status: "active" });
     }
     setErrors({});
-    setAdminPassword("");
   }, [user, isOpen]);
 
   const validate = () => {
@@ -107,7 +102,6 @@ const UserFormModal = ({ isOpen, onClose, user, onSave, isDark, existingEmails, 
       e.email = "Email already exists";
     }
     if (!isEdit && form.password.length < 6) e.password = "Minimum 6 characters";
-    if (!isEdit && !adminPassword) e.adminPassword = "Enter your password to create user";
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -117,7 +111,7 @@ const UserFormModal = ({ isOpen, onClose, user, onSave, isDark, existingEmails, 
     if (!validate()) return;
     setSaving(true);
     try {
-      await onSave(form, isEdit, adminPassword);
+      await onSave(form, isEdit);
       onClose();
     } catch (err) {
       console.error("Save error:", err);
@@ -229,35 +223,6 @@ const UserFormModal = ({ isOpen, onClose, user, onSave, isDark, existingEmails, 
             </select>
           </div>
         </div>
-
-        {/* Admin Password - Required for creating new users */}
-        {!isEdit && (
-          <div className={`p-4 rounded-xl ${isDark ? "bg-yellow-500/10 border border-yellow-500/30" : "bg-yellow-50 border border-yellow-200"}`}>
-            <label className={`block text-sm font-medium mb-2 ${isDark ? "text-yellow-400" : "text-yellow-700"}`}>
-              🔐 Your Password (to stay logged in)
-            </label>
-            <div className="relative">
-              <input
-                type={showAdminPass ? "text" : "password"}
-                value={adminPassword}
-                onChange={(e) => setAdminPassword(e.target.value)}
-                className={inputClass(errors.adminPassword)}
-                placeholder="Enter your superadmin password"
-              />
-              <button
-                type="button"
-                onClick={() => setShowAdminPass(!showAdminPass)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500"
-              >
-                {showAdminPass ? <EyeOff size={18} /> : <Eye size={18} />}
-              </button>
-            </div>
-            {errors.adminPassword && <p className="text-red-500 text-xs mt-1">{errors.adminPassword}</p>}
-            <p className={`text-xs mt-2 ${isDark ? "text-gray-400" : "text-gray-500"}`}>
-              Required to re-authenticate after creating user
-            </p>
-          </div>
-        )}
 
         {/* Buttons */}
         <div className="flex gap-3 pt-4">
@@ -607,53 +572,61 @@ const UsersPage = () => {
   }, []);
 
   // Create or Update User
-  const handleSaveUser = async (form, isEdit, adminPassword) => {
+  const handleSaveUser = async (form, isEdit) => {
     try {
       if (isEdit) {
-        // Update existing user
+        // ✅ Update existing user
         await updateDoc(doc(db, "users", editUser.uid), {
           name: form.name,
           role: form.role,
           status: form.status,
           updatedAt: serverTimestamp()
         });
+
         toast.success("User updated successfully!");
       } else {
-        // Create new user
-        const currentEmail = currentUser.email;
-        
-        // Create the new user
-        const userCred = await createUserWithEmailAndPassword(auth, form.email, form.password);
-        
-        // Save to Firestore
-        await setDoc(doc(db, "users", userCred.user.uid), {
-          uid: userCred.user.uid,
-          email: form.email.toLowerCase(),
+        // ✅ Create user using Secondary Auth (NO session switch)
+
+        const secondaryAuth = getSecondaryAuth();
+
+        const userCredential = await createUserWithEmailAndPassword(
+          secondaryAuth,
+          form.email.toLowerCase(),
+          form.password
+        );
+
+        const newUser = userCredential.user;
+
+        // ✅ Save user data in Firestore
+        await setDoc(doc(db, "users", newUser.uid), {
           name: form.name,
+          email: form.email.toLowerCase(),
           role: form.role,
           status: form.status,
           createdAt: serverTimestamp(),
-          createdBy: currentUser.uid
+          createdBy: currentUser?.uid
         });
 
-        // Re-login as superadmin
-        await signInWithEmailAndPassword(auth, currentEmail, adminPassword);
-        
+        // ✅ Important: logout secondary app
+        await secondaryAuth.signOut();
+
         toast.success("User created successfully!");
       }
-      
+
       await loadUsers();
       setEditUser(null);
       setShowAddModal(false);
+
     } catch (error) {
       console.error("Save user error:", error);
+
       if (error.code === "auth/email-already-in-use") {
         throw new Error("Email already in use");
-      } else if (error.code === "auth/wrong-password") {
-        throw new Error("Your password is incorrect");
-      } else if (error.code === "auth/weak-password") {
+      }
+      if (error.code === "auth/weak-password") {
         throw new Error("Password is too weak");
       }
+
       throw error;
     }
   };
@@ -870,7 +843,6 @@ const UsersPage = () => {
         onSave={handleSaveUser}
         isDark={isDark}
         existingEmails={existingEmails}
-        currentUserEmail={currentUser?.email}
       />
 
       <DeleteModal
