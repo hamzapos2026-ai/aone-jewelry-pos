@@ -1,20 +1,25 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import App from "./App.jsx";
-import "./index.css";
-
+import { Toaster } from "react-hot-toast";
 import { BrowserRouter } from "react-router-dom";
-import { ThemeProvider } from "./context/ThemeContext";
-import { LanguageProvider } from "./context/LanguageContext";
+import App from "./App";
+import "./index.css";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
     <BrowserRouter>
-      <ThemeProvider>
-        <LanguageProvider>
-          <App />
-        </LanguageProvider>
-      </ThemeProvider>
+      <App />
+      <Toaster
+        position="top-right"
+        toastOptions={{
+          duration: 2500,
+          style: {
+            background: "#111",
+            color: "#fff",
+            border: "1px solid rgba(234,179,8,.25)",
+          },
+        }}
+      />
     </BrowserRouter>
   </React.StrictMode>
 );

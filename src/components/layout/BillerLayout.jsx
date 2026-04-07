@@ -58,12 +58,14 @@ const BillerLayout = () => {
 
   return (
     <div
-      className={`min-h-screen ${isDark ? "bg-[#050505]" : "bg-gray-50"}`}
+      className={`min-h-screen ${isDark ? "bg-[#050505] text-white" : "bg-gray-50 text-gray-900"}`}
       dir={isRTL ? "rtl" : "ltr"}
     >
+      {/* Background */}
       <div className="pointer-events-none fixed inset-0 overflow-hidden opacity-30">
         <div className="absolute left-1/4 top-0 h-96 w-96 rounded-full bg-yellow-500/5 blur-3xl" />
         <div className="absolute bottom-0 right-1/4 h-80 w-80 rounded-full bg-amber-500/5 blur-3xl" />
+        <div className="absolute inset-0 bg-[linear-gradient(rgba(251,191,36,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(251,191,36,0.02)_1px,transparent_1px)] bg-[size:48px_48px]" />
       </div>
 
       <div className="relative flex min-h-screen flex-col">
