@@ -1,11 +1,15 @@
-import { createContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useState } from "react";
 
-export const ThemeContext = createContext();
+// Create Context
+const ThemeContext = createContext(null);
 
-export const ThemeProvider = ({ children }) => {
+// Theme Provider Component
+const ThemeProvider = ({ children }) => {
   const [theme, setTheme] = useState(() => {
     return localStorage.getItem("theme") || "light";
   });
+
+  const isDark = theme === "dark";
 
   useEffect(() => {
     localStorage.setItem("theme", theme);
@@ -21,11 +25,34 @@ export const ThemeProvider = ({ children }) => {
     setTheme((prev) => (prev === "light" ? "dark" : "light"));
   };
 
-  const isDark = theme === "dark";
+  const setIsDark = (value) => {
+    setTheme(value ? "dark" : "light");
+  };
+
+  const value = {
+    theme,
+    isDark,
+    setTheme,
+    setIsDark,
+    toggleTheme,
+  };
 
   return (
-    <ThemeContext.Provider value={{ theme, isDark, toggleTheme }}>
+    <ThemeContext.Provider value={value}>
       {children}
     </ThemeContext.Provider>
   );
 };
+
+// useTheme Hook
+const useTheme = () => {
+  const context = useContext(ThemeContext);
+  if (!context) {
+    throw new Error("useTheme must be used within a ThemeProvider");
+  }
+  return context;
+};
+
+// Exports
+export { ThemeContext, ThemeProvider, useTheme };
+export default ThemeContext;

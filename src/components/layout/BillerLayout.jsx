@@ -3,64 +3,123 @@ import { motion } from "framer-motion";
 import { useEffect, useState } from "react";
 import { doc, getDoc } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
+import { WifiOff } from "lucide-react";
 
 import Header from "./header";
 import Footer from "./Footer";
 import { useTheme } from "../../hooks/useTheme";
 import { useLanguage } from "../../hooks/useLanguage";
+import useNetworkStatus from "../../hooks/useNetworkStatus";
 import { auth, db } from "../../services/firebase";
 
 const BillerLayout = () => {
   const { isDark } = useTheme();
   const { language } = useLanguage();
   const location = useLocation();
+  const isOnline = useNetworkStatus();
   const isRTL = language === "ur";
 
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState(() => {
+    // ✅ Load cached user immediately (for offline)
+    try {
+      const cached = localStorage.getItem("billerUser");
+      return cached ? JSON.parse(cached) : null;
+    } catch {
+      return null;
+    }
+  });
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      if (!firebaseUser) {
-        setUser(null);
-        return;
-      }
+    let unsubscribe = () => {};
 
-      try {
-        const userRef = doc(db, "users", firebaseUser.uid);
-        const userSnap = await getDoc(userRef);
-
-        if (userSnap.exists()) {
-          setUser({
-            uid: firebaseUser.uid,
-            ...userSnap.data(),
-          });
-        } else {
-          setUser({
-            uid: firebaseUser.uid,
-            name: firebaseUser.displayName || "User",
-            email: firebaseUser.email || "",
-            role: "biller",
-          });
+    try {
+      unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+        if (!firebaseUser) {
+          // ✅ Offline: keep cached user
+          if (!isOnline) {
+            const cached = localStorage.getItem("billerUser");
+            if (cached) {
+              try { setUser(JSON.parse(cached)); } catch (e) {}
+            }
+            return;
+          }
+          setUser(null);
+          return;
         }
-      } catch (error) {
-        console.error("Error fetching biller user data:", error);
-        setUser({
-          uid: firebaseUser.uid,
-          name: firebaseUser.displayName || "User",
-          email: firebaseUser.email || "",
-          role: "biller",
-        });
+
+        // ✅ Try to fetch from Firestore (only if online)
+        if (isOnline) {
+          try {
+            const userRef = doc(db, "users", firebaseUser.uid);
+            const userSnap = await getDoc(userRef);
+
+            const userData = userSnap.exists()
+              ? { uid: firebaseUser.uid, ...userSnap.data() }
+              : {
+                  uid: firebaseUser.uid,
+                  name: firebaseUser.displayName || "User",
+                  email: firebaseUser.email || "",
+                  role: "biller",
+                };
+
+            setUser(userData);
+            // ✅ Cache for offline
+            localStorage.setItem("billerUser", JSON.stringify(userData));
+          } catch (error) {
+            console.error("Biller user fetch error:", error);
+            // ✅ Fallback to cached
+            const cached = localStorage.getItem("billerUser");
+            if (cached) {
+              try { setUser(JSON.parse(cached)); } catch (e) {}
+            } else {
+              setUser({
+                uid: firebaseUser.uid,
+                name: firebaseUser.displayName || "User",
+                email: firebaseUser.email || "",
+                role: "biller",
+              });
+            }
+          }
+        } else {
+          // ✅ Offline: use cached or basic info
+          const cached = localStorage.getItem("billerUser");
+          if (cached) {
+            try { setUser(JSON.parse(cached)); } catch (e) {}
+          } else {
+            setUser({
+              uid: firebaseUser.uid,
+              name: firebaseUser.displayName || "User",
+              email: firebaseUser.email || "",
+              role: "biller",
+            });
+          }
+        }
+      });
+    } catch (error) {
+      // ✅ Auth completely fails offline - use cached
+      console.error("Auth listener error:", error);
+      const cached = localStorage.getItem("billerUser");
+      if (cached) {
+        try { setUser(JSON.parse(cached)); } catch (e) {}
       }
-    });
+    }
 
     return () => unsubscribe();
-  }, []);
+  }, [isOnline]);
 
   return (
     <div
       className={`min-h-screen ${isDark ? "bg-[#050505] text-white" : "bg-gray-50 text-gray-900"}`}
       dir={isRTL ? "rtl" : "ltr"}
     >
+      {/* ✅ Offline Banner */}
+      {!isOnline && (
+        <div className="sticky top-0 z-50 flex items-center justify-center gap-2 bg-gradient-to-r from-orange-600 to-amber-600 px-4 py-2 text-sm font-medium text-white shadow-lg">
+          <WifiOff size={16} />
+          <span>Offline Mode — Bills save locally & sync when online</span>
+        </div>
+      )}
+
       {/* Background */}
       <div className="pointer-events-none fixed inset-0 overflow-hidden opacity-30">
         <div className="absolute left-1/4 top-0 h-96 w-96 rounded-full bg-yellow-500/5 blur-3xl" />

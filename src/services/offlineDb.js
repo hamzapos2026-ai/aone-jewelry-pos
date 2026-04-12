@@ -1,9 +1,11 @@
+// src/services/offlineDB.js
 import Dexie from "dexie";
 
-export const offlineDb = new Dexie("aone_jewelry_pos");
+const offlineDB = new Dexie("AOneJewelryPOS");
 
-offlineDb.version(1).stores({
-  offlineOrders: "++id, serialNo, status, createdAt",
-  pendingSync: "++id, type, refId, createdAt",
-  offlineLogs: "++id, action, createdAt",
+offlineDB.version(1).stores({
+  pendingOrders: "++id, serialNo, billSerial, status, synced, createdAt",
+  pendingSyncQueue: "++id, type, createdAt, attempts",
 });
+
+export default offlineDB;

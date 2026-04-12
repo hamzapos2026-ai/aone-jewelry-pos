@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate } from "react-router-dom";
+import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { useSetup } from "../context/SetupContext";
 import useNetworkStatus from "../hooks/useNetworkStatus";
 
@@ -26,6 +26,8 @@ import AdminDashboard from "../pages/admin/Dashboard";
 import ManagerDashboard from "../pages/manager/Dashboard";
 import CashierDashboard from "../pages/cashier/Dashboard";
 import BillerDashboard from "../pages/biller/Dashboard";
+import BillerPOS from "../pages/biller/POS";
+import BillerSalesHistory from "../pages/biller/SalesHistory";
 import SuperAdminDashboard from "../pages/superadmin/Dashboard";
 import SuperAdminUsers from "../pages/superadmin/Users";
 import SuperAdminStores from "../pages/superadmin/Stores";
@@ -49,11 +51,13 @@ const LoadingScreen = () => (
 const AppRoutes = () => {
   const { setupComplete, loading } = useSetup();
   const isOnline = useNetworkStatus();
+  const location = useLocation();
 
-  // =========================
-  // OFFLINE FIRST PRIORITY
-  // =========================
-  if (!isOnline) {
+  // ✅ Check if current path is biller route
+  const isBillerRoute = location.pathname.startsWith("/biller");
+
+  // ✅ OFFLINE: Block everything EXCEPT biller
+  if (!isOnline && !isBillerRoute) {
     return (
       <Routes>
         <Route path="*" element={<Offline />} />
@@ -61,14 +65,27 @@ const AppRoutes = () => {
     );
   }
 
-  // Show loading while checking setup status
+  // ✅ OFFLINE + BILLER: Skip loading/setup checks, go straight to biller
+  if (!isOnline && isBillerRoute) {
+    return (
+      <Routes>
+        <Route path="/biller" element={<BillerLayout />}>
+          <Route index element={<Navigate to="dashboard" replace />} />
+          <Route path="dashboard" element={<BillerDashboard />} />
+          <Route path="pos" element={<BillerPOS />} />
+          <Route path="sales-history" element={<BillerSalesHistory />} />
+        </Route>
+        <Route path="*" element={<Navigate to="/biller/dashboard" replace />} />
+      </Routes>
+    );
+  }
+
+  // Show loading while checking setup status (ONLINE ONLY)
   if (loading) {
     return <LoadingScreen />;
   }
 
-  // ============================================
   // IF SETUP NOT COMPLETE - ONLY SHOW SETUP PAGE
-  // ============================================
   if (!setupComplete) {
     return (
       <Routes>
@@ -78,9 +95,7 @@ const AppRoutes = () => {
     );
   }
 
-  // ============================================
   // SETUP COMPLETE - NORMAL ROUTES
-  // ============================================
   return (
     <Routes>
       {/* ==================== SYSTEM ROUTES ==================== */}
@@ -88,44 +103,13 @@ const AppRoutes = () => {
       <Route path="/unauthorized" element={<Unauthorized />} />
 
       {/* ==================== PUBLIC ROUTES ==================== */}
-      <Route
-        path="/login"
-        element={
-          <PublicRoute>
-            <Login />
-          </PublicRoute>
-        }
-      />
-
-      <Route
-        path="/forgot-password"
-        element={
-          <PublicRoute>
-            <ForgotPassword />
-          </PublicRoute>
-        }
-      />
-
-      <Route
-        path="/register"
-        element={
-          <PublicRoute>
-            <Register />
-          </PublicRoute>
-        }
-      />
-
+      <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
+      <Route path="/forgot-password" element={<PublicRoute><ForgotPassword /></PublicRoute>} />
+      <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
       <Route path="/reset-password" element={<ResetPassword />} />
 
       {/* ==================== SUPER ADMIN ==================== */}
-      <Route
-        path="/superadmin"
-        element={
-          <RoleBasedRoute allowedRoles={["superadmin"]}>
-            <SuperAdminLayout />
-          </RoleBasedRoute>
-        }
-      >
+      <Route path="/superadmin" element={<RoleBasedRoute allowedRoles={["superadmin"]}><SuperAdminLayout /></RoleBasedRoute>}>
         <Route index element={<Navigate to="dashboard" replace />} />
         <Route path="dashboard" element={<SuperAdminDashboard />} />
         <Route path="users" element={<SuperAdminUsers />} />
@@ -135,58 +119,32 @@ const AppRoutes = () => {
       </Route>
 
       {/* ==================== ADMIN ==================== */}
-      <Route
-        path="/admin"
-        element={
-          <RoleBasedRoute allowedRoles={["admin", "superadmin"]}>
-            <AdminLayout />
-          </RoleBasedRoute>
-        }
-      >
+      <Route path="/admin" element={<RoleBasedRoute allowedRoles={["admin", "superadmin"]}><AdminLayout /></RoleBasedRoute>}>
         <Route index element={<Navigate to="dashboard" replace />} />
         <Route path="dashboard" element={<AdminDashboard />} />
       </Route>
 
       {/* ==================== MANAGER ==================== */}
-      <Route
-        path="/manager"
-        element={
-          <RoleBasedRoute allowedRoles={["manager"]}>
-            <ManagerLayout />
-          </RoleBasedRoute>
-        }
-      >
+      <Route path="/manager" element={<RoleBasedRoute allowedRoles={["manager"]}><ManagerLayout /></RoleBasedRoute>}>
         <Route index element={<Navigate to="dashboard" replace />} />
         <Route path="dashboard" element={<ManagerDashboard />} />
       </Route>
 
       {/* ==================== CASHIER ==================== */}
-      <Route
-        path="/cashier"
-        element={
-          <RoleBasedRoute allowedRoles={["cashier"]}>
-            <CashierLayout />
-          </RoleBasedRoute>
-        }
-      >
+      <Route path="/cashier" element={<RoleBasedRoute allowedRoles={["cashier"]}><CashierLayout /></RoleBasedRoute>}>
         <Route index element={<Navigate to="dashboard" replace />} />
         <Route path="dashboard" element={<CashierDashboard />} />
       </Route>
 
       {/* ==================== BILLER ==================== */}
-      <Route
-        path="/biller"
-        element={
-          <RoleBasedRoute allowedRoles={["biller"]}>
-            <BillerLayout />
-          </RoleBasedRoute>
-        }
-      >
+      <Route path="/biller" element={<RoleBasedRoute allowedRoles={["biller"]}><BillerLayout /></RoleBasedRoute>}>
         <Route index element={<Navigate to="dashboard" replace />} />
         <Route path="dashboard" element={<BillerDashboard />} />
+        <Route path="pos" element={<BillerPOS />} />
+        <Route path="sales-history" element={<BillerSalesHistory />} />
       </Route>
 
-      {/* ==================== DEFAULT ROUTES ==================== */}
+      {/* ==================== DEFAULT ==================== */}
       <Route path="/" element={<Navigate to="/login" replace />} />
       <Route path="*" element={<NotFound />} />
     </Routes>
