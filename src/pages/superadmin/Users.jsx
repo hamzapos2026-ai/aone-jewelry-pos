@@ -568,7 +568,7 @@ const UserCard = ({ user, onEdit, onDelete, onReset, isDark, isCurrentUser }) =>
 };
 
 // Main Users Page Component
-const UsersPage = () => {
+const UsersPage = ({ defaultRoleFilter = "all" }) => {
   const { user: currentUser } = useAuth();
   const { isDark } = useTheme();
   const { language } = useLanguage();
@@ -576,7 +576,7 @@ const UsersPage = () => {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
-  const [roleFilter, setRoleFilter] = useState("all");
+  const [roleFilter, setRoleFilter] = useState(defaultRoleFilter);
 
   const [showAddModal, setShowAddModal] = useState(false);
   const [editUser, setEditUser] = useState(null);

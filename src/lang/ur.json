@@ -228,6 +228,18 @@
     }
   },
 
+  "billerDashboard": {
+    "title": "بلر ڈیش بورڈ",
+    "locked": "بل لاک ہے",
+    "active": "فعال",
+    "pressInsert": "شروع کرنے کے لیے INSERT دبائیں",
+    "offlineMode": "آف لائن موڈ",
+    "offlineInfo": "آرڈرز مقامی طور پر محفوظ کیے گئے ہیں اور دوبارہ کنیکٹ ہونے پر سنک ہوں گے۔",
+    "offlinePending": "{{count}} زیر التواء",
+    "searchCustomer": "گاہک تلاش کریں…",
+    "addCustomer": "گاہک شامل کریں"
+  },
+
   "setup": {
     "title": "پہلی بار سیٹ اپ",
     "subtitle": "اپنا سپر ایڈمن اکاؤنٹ بنائیں",

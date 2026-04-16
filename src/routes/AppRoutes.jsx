@@ -30,6 +30,7 @@ import BillerPOS from "../pages/biller/POS";
 import BillerSalesHistory from "../pages/biller/SalesHistory";
 import SuperAdminDashboard from "../pages/superadmin/Dashboard";
 import SuperAdminUsers from "../pages/superadmin/Users";
+import SuperAdminBillers from "../pages/superadmin/Billers";
 import SuperAdminStores from "../pages/superadmin/Stores";
 import SuperAdminCreateStore from "../pages/superadmin/CreateStore";
 import SuperAdminLoginLogs from "../pages/superadmin/LoginLogs";
@@ -113,6 +114,7 @@ const AppRoutes = () => {
         <Route index element={<Navigate to="dashboard" replace />} />
         <Route path="dashboard" element={<SuperAdminDashboard />} />
         <Route path="users" element={<SuperAdminUsers />} />
+        <Route path="billers" element={<SuperAdminBillers />} />
         <Route path="stores" element={<SuperAdminStores />} />
         <Route path="create-store" element={<SuperAdminCreateStore />} />
         <Route path="login-logs" element={<SuperAdminLoginLogs />} />

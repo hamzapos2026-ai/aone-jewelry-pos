@@ -1,6 +1,6 @@
 // src/pages/superadmin/Stores.jsx
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import {
   Store,
@@ -13,12 +13,15 @@ import {
   Phone,
   Mail,
   Loader2,
+  X,
+  Lock,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { useTheme } from "../../hooks/useTheme";
 import { useLanguage } from "../../hooks/useLanguage";
 import en from "../../lang/en.json";
 import ur from "../../lang/ur.json";
+import { getStores, updateStore } from "../../modules/stores/storeService";
 
 const StoresPage = () => {
   const { isDark } = useTheme();
@@ -27,42 +30,95 @@ const StoresPage = () => {
   const [stores, setStores] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  const [selectedStore, setSelectedStore] = useState(null);
+  const [storeSettings, setStoreSettings] = useState({
+    showInvoicePreview: false,
+    showRecentOrders: true,
+    showSearchPanel: true,
+    showTimestamps: true,
+    allowDirectSubmit: false,
+    allowCancelBill: true,
+  });
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [savingSettings, setSavingSettings] = useState(false);
 
   const t = language === "ur" ? ur : en;
 
-  useEffect(() => {
-    // Mock data for now - replace with actual Firebase data later
-    const mockStores = [
-      {
-        id: "1",
-        name: "A ONE Jewelry Main Store",
-        address: "123 Main Street, City",
-        phone: "+92-300-1234567",
-        email: "main@aonejewelry.com",
-        status: "active",
-        manager: "John Doe",
-      },
-      {
-        id: "2",
-        name: "A ONE Jewelry Branch 1",
-        address: "456 Branch Road, City",
-        phone: "+92-300-7654321",
-        email: "branch1@aonejewelry.com",
-        status: "active",
-        manager: "Jane Smith",
-      },
-    ];
-
-    setTimeout(() => {
-      setStores(mockStores);
+  const loadStores = useCallback(async () => {
+    setLoading(true);
+    try {
+      const fetchedStores = await getStores();
+      const normalized = fetchedStores.map((store) => ({
+        ...store,
+        billerPermissions: {
+          showInvoicePreview: false,
+          showRecentOrders: true,
+          showSearchPanel: true,
+          showTimestamps: true,
+          allowDirectSubmit: false,
+          allowCancelBill: true,
+          ...(store.billerPermissions || {}),
+        },
+      }));
+      setStores(normalized);
+    } catch (error) {
+      console.error("Error loading stores:", error);
+      toast.error("Unable to load stores.");
+    } finally {
       setLoading(false);
-    }, 1000);
+    }
   }, []);
+
+  useEffect(() => {
+    loadStores();
+  }, [loadStores]);
 
   const filteredStores = stores.filter((store) =>
     store.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     store.address?.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  const openStoreSettings = useCallback((store) => {
+    setSelectedStore(store);
+    setStoreSettings(store.billerPermissions || {
+      showInvoicePreview: false,
+      showRecentOrders: true,
+      showSearchPanel: true,
+      showTimestamps: true,
+      allowDirectSubmit: false,
+      allowCancelBill: true,
+    });
+    setSettingsOpen(true);
+  }, []);
+
+  const closeStoreSettings = useCallback(() => {
+    setSettingsOpen(false);
+    setSelectedStore(null);
+  }, []);
+
+  const handleStoreSettingChange = useCallback((key) => {
+    setStoreSettings((prev) => ({ ...prev, [key]: !prev[key] }));
+  }, []);
+
+  const saveStoreSettings = useCallback(async () => {
+    if (!selectedStore) return;
+    setSavingSettings(true);
+    try {
+      const updated = await updateStore(selectedStore.id, {
+        billerPermissions: storeSettings,
+      });
+      setStores((prev) => prev.map((store) =>
+        store.id === selectedStore.id ? { ...store, billerPermissions: storeSettings } : store
+      ));
+      toast.success("Store settings saved.");
+      closeStoreSettings();
+    } catch (error) {
+      console.error("Failed to save store settings:", error);
+      toast.error("Unable to save store settings.");
+    } finally {
+      setSavingSettings(false);
+    }
+  }, [selectedStore, storeSettings, closeStoreSettings]);
 
   if (loading) {
     return (
@@ -120,11 +176,12 @@ const StoresPage = () => {
                 <Store size={24} className="text-yellow-600" />
               </div>
               <div className="flex gap-2">
-                <button className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors" title="Edit Store">
+                <button
+                  onClick={() => openStoreSettings(store)}
+                  className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors"
+                  title="Biller Settings"
+                >
                   <Edit size={16} />
-                </button>
-                <button className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition-colors" title="Delete Store">
-                  <Trash2 size={16} />
                 </button>
               </div>
             </div>
@@ -165,6 +222,69 @@ const StoresPage = () => {
           </motion.div>
         ))}
       </div>
+
+      {settingsOpen && selectedStore && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className={`w-full max-w-2xl rounded-3xl border p-6 shadow-2xl ${isDark ? "bg-[#111] border-yellow-500/20" : "bg-white border-yellow-200"}`}>
+            <div className="flex items-center justify-between gap-3 mb-6">
+              <div>
+                <h2 className={`text-xl font-bold ${isDark ? "text-white" : "text-gray-900"}`}>Biller Settings</h2>
+                <p className={`text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}>Update permissions for {selectedStore.name}</p>
+              </div>
+              <button
+                onClick={closeStoreSettings}
+                className={`rounded-full p-2 transition ${isDark ? "bg-white/10 text-white" : "bg-gray-100 text-gray-700"}`}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              {[
+                ["showInvoicePreview", "Invoice Preview", "Open invoice print dialog during F8 checkout"],
+                ["showRecentOrders", "Recent Orders", "Show recent orders on biller dashboard"],
+                ["showSearchPanel", "Search Panel", "Allow biller to use order search"],
+                ["showTimestamps", "Timestamps", "Show bill start/end times"],
+                ["allowDirectSubmit", "Direct Submit", "Allow biller to submit without F8 flow"],
+                ["allowCancelBill", "Cancel Bill", "Allow biller to cancel current bill"],
+              ].map(([key, label, desc]) => (
+                <label key={key} className={`flex flex-col gap-2 rounded-2xl border px-4 py-4 ${isDark ? "border-yellow-500/10 bg-black/20" : "border-gray-200 bg-gray-50"}`}>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className={`font-semibold ${isDark ? "text-white" : "text-gray-900"}`}>{label}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleStoreSettingChange(key)}
+                      className={`relative h-6 w-11 rounded-full transition ${storeSettings[key] ? "bg-yellow-500" : isDark ? "bg-gray-700" : "bg-gray-300"}`}
+                    >
+                      <span
+                        className="absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all"
+                        style={{ left: storeSettings[key] ? "21px" : "2px" }}
+                      />
+                    </button>
+                  </div>
+                  <span className={`text-xs ${isDark ? "text-gray-400" : "text-gray-600"}`}>{desc}</span>
+                </label>
+              ))}
+            </div>
+
+            <div className="mt-6 flex flex-wrap items-center justify-end gap-3">
+              <button
+                onClick={closeStoreSettings}
+                className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${isDark ? "border border-yellow-500/10 bg-transparent text-yellow-300 hover:bg-white/10" : "border border-gray-200 bg-white text-gray-700 hover:bg-gray-100"}`}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={saveStoreSettings}
+                disabled={savingSettings}
+                className="rounded-xl bg-yellow-500 px-4 py-2 text-sm font-semibold text-black hover:bg-yellow-400 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {savingSettings ? "Saving…" : "Save Settings"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

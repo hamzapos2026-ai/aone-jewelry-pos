@@ -228,6 +228,18 @@
     }
   },
 
+  "billerDashboard": {
+    "title": "Biller Dashboard",
+    "locked": "Bill Locked",
+    "active": "Active",
+    "pressInsert": "Press INSERT to start",
+    "offlineMode": "Offline Mode",
+    "offlineInfo": "Orders saved locally and sync on reconnect.",
+    "offlinePending": "{{count}} pending",
+    "searchCustomer": "Search customer…",
+    "addCustomer": "Add Customer"
+  },
+
   "setup": {
     "title": "First Time Setup",
     "subtitle": "Create your super admin account",
