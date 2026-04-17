@@ -73,15 +73,23 @@ export const clearLocalSetupStatus = () => {
   localStorage.removeItem('setupCompleted');
   console.log('🗑️ Local setup status cleared');
 };
-  
+
+/**
+ * Check if current user is super admin
+ * @param {string} uid - User ID
+ * @returns {Promise<boolean>} True if user is super admin
+ */
+export const isUserSuperAdmin = async (uid) => {
+  if (!uid) return false;
+
   try {
     const userDoc = await getDoc(doc(db, 'users', uid));
-    
+
     if (userDoc.exists()) {
       const userData = userDoc.data();
       return userData.role === 'superadmin';
     }
-    
+
     return false;
   } catch (error) {
     console.error('Error checking user role:', error);
@@ -96,13 +104,13 @@ export const clearLocalSetupStatus = () => {
 export const getSuperAdminDetails = async () => {
   try {
     const systemDoc = await getDoc(doc(db, 'system', 'setup'));
-    
+
     if (systemDoc.exists()) {
       const data = systemDoc.data();
-      
+
       if (data.hasSuperAdmin && data.superAdminUid) {
         const userDoc = await getDoc(doc(db, 'users', data.superAdminUid));
-        
+
         if (userDoc.exists()) {
           return {
             uid: data.superAdminUid,
@@ -112,12 +120,13 @@ export const getSuperAdminDetails = async () => {
         }
       }
     }
-    
+
     return null;
   } catch (error) {
     console.error('Error getting super admin details:', error);
     return null;
   }
+};
 };
 
 /**
