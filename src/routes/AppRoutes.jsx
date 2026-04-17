@@ -81,7 +81,8 @@ const AppRoutes = () => {
     if (!isSetupComplete) {
       return (
         <Routes>
-          <Route path="*" element={<Offline setupIncomplete={true} />} />
+          <Route path="/" element={<Offline setupIncomplete={true} />} />
+          <Route path="*" element={<NotFound />} />
         </Routes>
       );
     }
@@ -94,16 +95,18 @@ const AppRoutes = () => {
       return (
         <Routes>
           <Route path="/auth/login" element={<Login />} />
-          <Route path="*" element={<Navigate to="/auth/login" replace />} />
+          <Route path="*" element={<NotFound />} />
         </Routes>
       );
     }
 
-    // If logged in but not biller, show offline page
+    // If logged in but not biller, show offline page for valid routes, 404 for invalid
     if (userData.role !== "biller") {
       return (
         <Routes>
-          <Route path="*" element={<Offline />} />
+          <Route path="/offline" element={<Offline />} />
+          <Route path="/unauthorized" element={<Unauthorized />} />
+          <Route path="*" element={<NotFound />} />
         </Routes>
       );
     }
@@ -118,24 +121,24 @@ const AppRoutes = () => {
             <Route path="pos" element={<BillerPOS />} />
             <Route path="sales-history" element={<BillerSalesHistory />} />
           </Route>
-          <Route path="*" element={<Navigate to="/biller/dashboard" replace />} />
+          <Route path="*" element={<NotFound />} />
         </Routes>
       );
     }
 
-    // Biller trying to access non-biller routes, redirect to biller dashboard
+    // Biller trying to access non-biller routes, show 404 for invalid routes
     if (userData.role === "biller" && !isBillerRoute) {
       return (
         <Routes>
-          <Route path="*" element={<Navigate to="/biller/dashboard" replace />} />
+          <Route path="*" element={<NotFound />} />
         </Routes>
       );
     }
 
-    // Fallback - show offline page
+    // Fallback - show 404 page
     return (
       <Routes>
-        <Route path="*" element={<Offline />} />
+        <Route path="*" element={<NotFound />} />
       </Routes>
     );
   }
