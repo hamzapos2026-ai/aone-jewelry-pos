@@ -182,7 +182,10 @@ export const createSuperAdminSetup = async (setupData) => {
     }
 
     console.log("=== SETUP COMPLETE ===");
-    
+
+    // ✅ Store setup completion in localStorage for offline support
+    localStorage.setItem('setupCompleted', 'true');
+
     return {
       user: {
         uid: user.uid,
