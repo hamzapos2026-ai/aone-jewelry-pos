@@ -54,29 +54,88 @@ const AppRoutes = () => {
   const isOnline = useNetworkStatus();
   const location = useLocation();
 
+  // Helper function to get offline auth state
+  const getOfflineAuthState = () => {
+    try {
+      const user = localStorage.getItem("user");
+      const userData = localStorage.getItem("userData");
+      return {
+        user: user ? JSON.parse(user) : null,
+        userData: userData ? JSON.parse(userData) : null
+      };
+    } catch (error) {
+      console.error("Error parsing offline auth state:", error);
+      return { user: null, userData: null };
+    }
+  };
+
+  // Check setup status with localStorage fallback
+  const isSetupComplete = setupComplete || localStorage.getItem("setupComplete") === "true";
+
   // ✅ Check if current path is biller route
   const isBillerRoute = location.pathname.startsWith("/biller");
 
-  // ✅ OFFLINE: Block everything EXCEPT biller
-  if (!isOnline && !isBillerRoute) {
+  // ✅ OFFLINE HANDLING
+  if (!isOnline) {
+    // If setup not complete, show offline page
+    if (!isSetupComplete) {
+      return (
+        <Routes>
+          <Route path="*" element={<Offline setupIncomplete={true} />} />
+        </Routes>
+      );
+    }
+
+    // Setup complete, check auth state from localStorage
+    const { user, userData } = getOfflineAuthState();
+
+    // If not logged in, redirect to login
+    if (!user || !userData) {
+      return (
+        <Routes>
+          <Route path="/auth/login" element={<Login />} />
+          <Route path="*" element={<Navigate to="/auth/login" replace />} />
+        </Routes>
+      );
+    }
+
+    // If logged in but not biller, show offline page
+    if (userData.role !== "biller") {
+      return (
+        <Routes>
+          <Route path="*" element={<Offline />} />
+        </Routes>
+      );
+    }
+
+    // If biller and on biller route, allow access
+    if (userData.role === "biller" && isBillerRoute) {
+      return (
+        <Routes>
+          <Route path="/biller" element={<BillerLayout />}>
+            <Route index element={<Navigate to="dashboard" replace />} />
+            <Route path="dashboard" element={<BillerDashboard />} />
+            <Route path="pos" element={<BillerPOS />} />
+            <Route path="sales-history" element={<BillerSalesHistory />} />
+          </Route>
+          <Route path="*" element={<Navigate to="/biller/dashboard" replace />} />
+        </Routes>
+      );
+    }
+
+    // Biller trying to access non-biller routes, redirect to biller dashboard
+    if (userData.role === "biller" && !isBillerRoute) {
+      return (
+        <Routes>
+          <Route path="*" element={<Navigate to="/biller/dashboard" replace />} />
+        </Routes>
+      );
+    }
+
+    // Fallback - show offline page
     return (
       <Routes>
         <Route path="*" element={<Offline />} />
-      </Routes>
-    );
-  }
-
-  // ✅ OFFLINE + BILLER: Skip loading/setup checks, go straight to biller
-  if (!isOnline && isBillerRoute) {
-    return (
-      <Routes>
-        <Route path="/biller" element={<BillerLayout />}>
-          <Route index element={<Navigate to="dashboard" replace />} />
-          <Route path="dashboard" element={<BillerDashboard />} />
-          <Route path="pos" element={<BillerPOS />} />
-          <Route path="sales-history" element={<BillerSalesHistory />} />
-        </Route>
-        <Route path="*" element={<Navigate to="/biller/dashboard" replace />} />
       </Routes>
     );
   }
@@ -87,7 +146,7 @@ const AppRoutes = () => {
   }
 
   // IF SETUP NOT COMPLETE - ONLY SHOW SETUP PAGE
-  if (!setupComplete) {
+  if (!isSetupComplete) {
     return (
       <Routes>
         <Route path="/" element={<SuperAdminSetup />} />

@@ -47,6 +47,10 @@ export const AuthProvider = ({ children }) => {
         setUserData(null);
         setProfileLoading(false);
         setLoading(false);
+
+        // Clear localStorage when signed out
+        localStorage.removeItem("user");
+        localStorage.removeItem("userData");
         return;
       }
 
@@ -57,6 +61,16 @@ export const AuthProvider = ({ children }) => {
         const data = await fetchUserData(user.uid);
         setUserData(data);
         console.log("✅ User Data Loaded:", data?.role || "No role");
+
+        // Store auth state in localStorage for offline access
+        localStorage.setItem("user", JSON.stringify({
+          uid: user.uid,
+          email: user.email,
+          displayName: user.displayName
+        }));
+        if (data) {
+          localStorage.setItem("userData", JSON.stringify(data));
+        }
       } catch (error) {
         console.error("❌ Error fetching user data:", error);
         setUserData(null);
