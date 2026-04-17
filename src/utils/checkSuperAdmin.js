@@ -127,7 +127,6 @@ export const getSuperAdminDetails = async () => {
     return null;
   }
 };
-};
 
 /**
  * Verify super admin by email
@@ -137,12 +136,12 @@ export const getSuperAdminDetails = async () => {
 export const verifySuperAdminEmail = async (email) => {
   try {
     const systemDoc = await getDoc(doc(db, 'system', 'setup'));
-    
+
     if (systemDoc.exists()) {
       const data = systemDoc.data();
       return data.superAdminEmail?.toLowerCase() === email.toLowerCase();
     }
-    
+
     return false;
   } catch (error) {
     console.error('Error verifying super admin email:', error);
