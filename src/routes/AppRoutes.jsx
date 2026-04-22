@@ -23,6 +23,7 @@ import SuperAdminLayout from "../components/layout/SuperAdminLayout";
 
 // ==================== DASHBOARDS ====================
 import AdminDashboard from "../pages/admin/Dashboard";
+import AdminDeletedBills from "../pages/admin/DeletedBills";
 import ManagerDashboard from "../pages/manager/Dashboard";
 import CashierDashboard from "../pages/cashier/Dashboard";
 import BillerDashboard from "../pages/biller/Dashboard";
@@ -34,6 +35,7 @@ import SuperAdminBillers from "../pages/superadmin/Billers";
 import SuperAdminStores from "../pages/superadmin/Stores";
 import SuperAdminCreateStore from "../pages/superadmin/CreateStore";
 import SuperAdminLoginLogs from "../pages/superadmin/LoginLogs";
+import SuperAdminSettings from "../pages/superadmin/Settings";
 
 // ==================== ROUTE GUARDS ====================
 import { RoleBasedRoute, PublicRoute } from "./RoleBasedRoute";
@@ -180,12 +182,14 @@ const AppRoutes = () => {
         <Route path="stores" element={<SuperAdminStores />} />
         <Route path="create-store" element={<SuperAdminCreateStore />} />
         <Route path="login-logs" element={<SuperAdminLoginLogs />} />
+        <Route path="settings" element={<SuperAdminSettings />} />
       </Route>
 
       {/* ==================== ADMIN ==================== */}
       <Route path="/admin" element={<RoleBasedRoute allowedRoles={["admin", "superadmin"]}><AdminLayout /></RoleBasedRoute>}>
         <Route index element={<Navigate to="dashboard" replace />} />
         <Route path="dashboard" element={<AdminDashboard />} />
+        <Route path="deleted-bills" element={<AdminDeletedBills />} />
       </Route>
 
       {/* ==================== MANAGER ==================== */}

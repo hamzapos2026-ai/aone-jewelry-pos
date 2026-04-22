@@ -1,3 +1,4 @@
+// src/layouts/biller/BillerLayout.jsx
 import { Outlet, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useEffect, useState } from "react";
@@ -5,8 +6,6 @@ import { doc, getDoc } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 import { WifiOff } from "lucide-react";
 
-import Header from "./header";
-import Footer from "./Footer";
 import { useTheme } from "../../hooks/useTheme";
 import { useLanguage } from "../../hooks/useLanguage";
 import useNetworkStatus from "../../hooks/useNetworkStatus";
@@ -20,7 +19,6 @@ const BillerLayout = () => {
   const isRTL = language === "ur";
 
   const [user, setUser] = useState(() => {
-    // ✅ Load cached user immediately (for offline)
     try {
       const cached = localStorage.getItem("billerUser");
       return cached ? JSON.parse(cached) : null;
@@ -35,7 +33,6 @@ const BillerLayout = () => {
     try {
       unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
         if (!firebaseUser) {
-          // ✅ Offline: keep cached user
           if (!isOnline) {
             const cached = localStorage.getItem("billerUser");
             if (cached) {
@@ -47,7 +44,6 @@ const BillerLayout = () => {
           return;
         }
 
-        // ✅ Try to fetch from Firestore (only if online)
         if (isOnline) {
           try {
             const userRef = doc(db, "users", firebaseUser.uid);
@@ -63,11 +59,9 @@ const BillerLayout = () => {
                 };
 
             setUser(userData);
-            // ✅ Cache for offline
             localStorage.setItem("billerUser", JSON.stringify(userData));
           } catch (error) {
             console.error("Biller user fetch error:", error);
-            // ✅ Fallback to cached
             const cached = localStorage.getItem("billerUser");
             if (cached) {
               try { setUser(JSON.parse(cached)); } catch (e) {}
@@ -81,7 +75,6 @@ const BillerLayout = () => {
             }
           }
         } else {
-          // ✅ Offline: use cached or basic info
           const cached = localStorage.getItem("billerUser");
           if (cached) {
             try { setUser(JSON.parse(cached)); } catch (e) {}
@@ -96,7 +89,6 @@ const BillerLayout = () => {
         }
       });
     } catch (error) {
-      // ✅ Auth completely fails offline - use cached
       console.error("Auth listener error:", error);
       const cached = localStorage.getItem("billerUser");
       if (cached) {
@@ -112,11 +104,11 @@ const BillerLayout = () => {
       className={`min-h-screen ${isDark ? "bg-[#050505] text-white" : "bg-gray-50 text-gray-900"}`}
       dir={isRTL ? "rtl" : "ltr"}
     >
-      {/* ✅ Offline Banner */}
+      {/* Offline Banner */}
       {!isOnline && (
         <div className="sticky top-0 z-50 flex items-center justify-center gap-2 bg-gradient-to-r from-orange-600 to-amber-600 px-4 py-2 text-sm font-medium text-white shadow-lg">
           <WifiOff size={16} />
-          <span>Offline Mode — Bills save locally & sync when online</span>
+          <span>Offline Mode - Bills save locally & sync when online</span>
         </div>
       )}
 
@@ -127,10 +119,9 @@ const BillerLayout = () => {
         <div className="absolute inset-0 bg-[linear-gradient(rgba(251,191,36,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(251,191,36,0.02)_1px,transparent_1px)] bg-[size:48px_48px]" />
       </div>
 
+      {/* NO Header imported here - BillerHeader is inside Dashboard */}
       <div className="relative flex min-h-screen flex-col">
-        <Header user={user} />
-
-        <main className="flex-1 p-4 lg:p-6">
+        <main className="flex-1 p-2 lg:p-3">
           <motion.div
             key={location.pathname}
             initial={{ opacity: 0, y: 10 }}
@@ -140,8 +131,6 @@ const BillerLayout = () => {
             <Outlet />
           </motion.div>
         </main>
-
-        <Footer />
       </div>
     </div>
   );

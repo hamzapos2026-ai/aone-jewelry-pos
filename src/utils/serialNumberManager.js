@@ -1,163 +1,383 @@
-// src/utils/serialNumberManager.js
+// src/utils/serialNumberManager.js - COMPLETE REWRITE
 import {
-  collection, query, where, orderBy,
-  limit, getDocs, serverTimestamp,
+  collection, getDocs, query,
+  where, orderBy, limit,
 } from "firebase/firestore";
+import { localDB, ensureDBOpen } from "../services/offlineDb";
 
-const LOCAL_KEY = (storeId) => `billSerial_${storeId}`;
-const COMMITTED_KEY = (storeId) => `billSerial_committed_${storeId}`;
-const ITEM_CTR_KEY = "itemSerialCounter";
+// ─── Internal State ───────────────────────────────────────────────────────────
+const _sessionSerials = new Set();
+let   _itemSerialCounter = 0;
 
-// ── Item serial (local only) ─────────────────────────────────────
-let _itemCounter = parseInt(localStorage.getItem(ITEM_CTR_KEY) || "0", 10);
-export const getNextItemSerial = () => {
-  _itemCounter += 1;
-  localStorage.setItem(ITEM_CTR_KEY, String(_itemCounter));
-  return `ITM-${String(_itemCounter).padStart(4, "0")}`;
-};
+// Draft cache: same serial until bill saved/cancelled
+const _draftSerials = new Map(); // storeId → { serial, num, generatedAt }
 
-// ── Bill serial ───────────────────────────────────────────────────
-// The key insight: we store TWO values locally:
-//   1. "committed" = the last serial number that was SUCCESSFULLY submitted
-//   2. "current"   = the serial currently being displayed (may not be submitted yet)
-//
-// On page load: if current == committed+1, reuse current (don't increment)
-// After submit: committed = current number, then current = committed+1
+// ─── Constants ────────────────────────────────────────────────────────────────
+const DRAFT_TTL_MS    = 2 * 60 * 60 * 1000; // 2 hour TTL
+const LS_DRAFT_PREFIX = "draft_serial_";
+const LS_COUNTER_PREFIX = "serial_counter_";
 
-let _pendingSerial = null;
-let _initialized = false;
-
-/**
- * Called ONCE on mount and ONCE after each successful submit.
- * @param {string} storeId
- * @param {object|null} db - Firestore instance (null = offline)
- * @param {boolean} forceIncrement - true only after successful submit
- */
-export const getNextBillSerial = async (storeId = "default", db = null, forceIncrement = false) => {
-  if (_pendingSerial) return _pendingSerial;
-
-  _pendingSerial = _compute(storeId, db, forceIncrement).finally(() => {
-    _pendingSerial = null;
-  });
-  return _pendingSerial;
-};
-
-const _compute = async (storeId, db, forceIncrement) => {
-  const committedKey = COMMITTED_KEY(storeId);
-  const currentKey = LOCAL_KEY(storeId);
-
-  // Read local values
-  const committedNum = parseInt(localStorage.getItem(committedKey) || "0", 10);
-  const currentNum = parseInt(localStorage.getItem(currentKey) || "0", 10);
-
-  // CASE 1: After successful submit (forceIncrement=true)
-  // committed was just updated by markBillSerialUsed, so next = committed + 1
-  if (forceIncrement) {
-    const freshCommitted = parseInt(localStorage.getItem(committedKey) || "0", 10);
-    const next = freshCommitted + 1;
-    localStorage.setItem(currentKey, String(next));
-    return `BILL-${String(next).padStart(4, "0")}`;
-  }
-
-  // CASE 2: Page load / first mount
-  // If we already have a "current" that is exactly committed+1,
-  // that means we generated it but haven't submitted yet → REUSE it
-  if (currentNum > 0 && currentNum === committedNum + 1) {
-    _initialized = true;
-    return `BILL-${String(currentNum).padStart(4, "0")}`;
-  }
-
-  // CASE 3: First time ever, or mismatch → figure out from Firestore
-  if (db) {
-    try {
-      const snap = await getDocs(
-        query(
-          collection(db, "orders"),
-          where("storeId", "==", storeId),
-          orderBy("createdAt", "desc"),
-          limit(1)
-        )
-      );
-
-      let highestNum = 0;
-      if (!snap.empty) {
-        const last = snap.docs[0].data();
-        const lastSerial = last.serialNo || last.billSerial || "";
-        highestNum = _extractNumber(lastSerial);
-      }
-
-      // Also check clearedBills for cancelled serials
-      try {
-        const clearedSnap = await getDocs(
-          query(
-            collection(db, "clearedBills"),
-            where("storeId", "==", storeId),
-            orderBy("clearedAt", "desc"),
-            limit(1)
-          )
-        );
-        if (!clearedSnap.empty) {
-          const clearedSerial = clearedSnap.docs[0].data().serialNo || "";
-          const clearedNum = _extractNumber(clearedSerial);
-          if (clearedNum > highestNum) highestNum = clearedNum;
-        }
-      } catch (_) {}
-
-      // Sync committed with Firestore
-      const firestoreCommitted = Math.max(highestNum, committedNum);
-      localStorage.setItem(committedKey, String(firestoreCommitted));
-
-      const next = firestoreCommitted + 1;
-      localStorage.setItem(currentKey, String(next));
-      _initialized = true;
-      return `BILL-${String(next).padStart(4, "0")}`;
-    } catch (e) {
-      console.warn("Firestore serial fetch failed, using local:", e);
+// ─── Draft Persistence (localStorage) ────────────────────────────────────────
+const loadDraftFromStorage = (storeId) => {
+  try {
+    const data = localStorage.getItem(`${LS_DRAFT_PREFIX}${storeId}`);
+    if (!data) return null;
+    const draft = JSON.parse(data);
+    const age   = Date.now() - new Date(draft.generatedAt).getTime();
+    if (age > DRAFT_TTL_MS) {
+      localStorage.removeItem(`${LS_DRAFT_PREFIX}${storeId}`);
+      return null;
     }
+    return draft;
+  } catch {
+    return null;
   }
-
-  // CASE 4: Offline fallback
-  const localCommitted = parseInt(localStorage.getItem(committedKey) || "0", 10);
-  const next = localCommitted + 1;
-
-  // Don't increment if current already equals next (page refresh)
-  if (currentNum === next) {
-    return `BILL-${String(currentNum).padStart(4, "0")}`;
-  }
-
-  localStorage.setItem(currentKey, String(next));
-  return `BILL-${String(next).padStart(4, "0")}`;
 };
 
-const _extractNumber = (serial) => {
-  if (!serial) return 0;
+const saveDraftToStorage = (storeId, draft) => {
+  try {
+    localStorage.setItem(
+      `${LS_DRAFT_PREFIX}${storeId}`,
+      JSON.stringify(draft)
+    );
+  } catch {}
+};
+
+const removeDraftFromStorage = (storeId) => {
+  try {
+    localStorage.removeItem(`${LS_DRAFT_PREFIX}${storeId}`);
+  } catch {}
+};
+
+// ─── Lock (race condition prevention) ────────────────────────────────────────
+let   _isGenerating   = false;
+const _generateQueue  = [];
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+const extractNumber = (serial = "") => {
   const match = serial.match(/(\d+)$/);
   return match ? parseInt(match[1], 10) : 0;
 };
 
-/**
- * Called ONLY after successful order submit.
- * Marks the serial as "committed" so next call to getNextBillSerial
- * will produce committed+1.
- */
-export const markBillSerialUsed = async (serialNo, storeId = "default") => {
-  const num = _extractNumber(serialNo);
-  if (num > 0) {
-    const committedKey = COMMITTED_KEY(storeId);
-    const currentCommitted = parseInt(localStorage.getItem(committedKey) || "0", 10);
-    // Only go forward, never backward
-    if (num > currentCommitted) {
-      localStorage.setItem(committedKey, String(num));
+const formatSerial = (num) => String(num).padStart(3, "0");
+
+// ─── Fetch Highest Serial From All Sources ────────────────────────────────────
+const fetchLastNumberFromDB = async (storeId, firestoreDb) => {
+  let lastNumber = 0;
+
+  // 1. localStorage counter (fastest, most recent)
+  try {
+    const lsVal = parseInt(
+      localStorage.getItem(`${LS_COUNTER_PREFIX}${storeId}`) || "0",
+      10
+    );
+    if (lsVal > lastNumber) lastNumber = lsVal;
+  } catch {}
+
+  // 2. Firestore (only when online)
+  if (firestoreDb && navigator.onLine) {
+    try {
+      const snap = await getDocs(
+        query(
+          collection(firestoreDb, "orders"),
+          where("storeId", "==", storeId),
+          orderBy("createdAt", "desc"),
+          limit(10) // Check more docs for safety
+        )
+      );
+      snap.docs.forEach((doc) => {
+        const data   = doc.data();
+        const serial = data.serialNo || data.billSerial || "";
+        const n      = extractNumber(serial);
+        if (n > lastNumber) lastNumber = n;
+      });
+    } catch (err) {
+      console.warn("Firestore serial check failed:", err.message);
     }
+  }
+
+  // 3. IndexedDB pending orders
+  try {
+    await ensureDBOpen();
+    const localPending = await localDB.pendingOrders
+      .where("storeId").equals(storeId)
+      .toArray();
+    for (const o of localPending) {
+      const serial = o.serialNo || o.billSerial || "";
+      const n      = extractNumber(serial);
+      if (n > lastNumber) lastNumber = n;
+    }
+  } catch (err) {
+    console.warn("Local pending serial check failed:", err.message);
+  }
+
+  // 4. IndexedDB serialTracker
+  try {
+    await ensureDBOpen();
+    const tracker = await localDB.serialTracker
+      .where("storeId").equals(storeId)
+      .first();
+    if (tracker && tracker.lastNumber > lastNumber) {
+      lastNumber = tracker.lastNumber;
+    }
+  } catch (err) {
+    console.warn("Serial tracker read failed:", err.message);
+  }
+
+  return lastNumber;
+};
+
+// ─── Update Tracker ───────────────────────────────────────────────────────────
+const updateTracker = async (storeId, nextNumber) => {
+  // Update localStorage first (fast & reliable)
+  try {
+    const LS_KEY  = `${LS_COUNTER_PREFIX}${storeId}`;
+    const current = parseInt(localStorage.getItem(LS_KEY) || "0", 10);
+    if (nextNumber > current) {
+      localStorage.setItem(LS_KEY, String(nextNumber));
+    }
+  } catch {}
+
+  // Update IndexedDB tracker
+  try {
+    await ensureDBOpen();
+    const tracker = await localDB.serialTracker
+      .where("storeId").equals(storeId)
+      .first();
+    if (tracker) {
+      if (nextNumber > tracker.lastNumber) {
+        await localDB.serialTracker.update(tracker.id, {
+          lastNumber: nextNumber,
+          updatedAt:  new Date().toISOString(),
+        });
+      }
+    } else {
+      await localDB.serialTracker.add({
+        storeId,
+        lastNumber: nextNumber,
+        prefix:     "",
+        updatedAt:  new Date().toISOString(),
+      });
+    }
+  } catch (err) {
+    console.warn("Serial tracker update failed:", err.message);
   }
 };
 
+// ─── Queue Processor ──────────────────────────────────────────────────────────
+const processQueue = async () => {
+  if (_isGenerating || _generateQueue.length === 0) return;
+  _isGenerating = true;
+
+  const { storeId, firestoreDb, forceNew, resolve, reject } =
+    _generateQueue.shift();
+
+  try {
+    const serial = await _generateSerial(storeId, firestoreDb, forceNew);
+    resolve(serial);
+  } catch (err) {
+    console.error("Serial generation error:", err);
+    reject(err);
+  } finally {
+    _isGenerating = false;
+    if (_generateQueue.length > 0) processQueue();
+  }
+};
+
+// ─── Core Generator ───────────────────────────────────────────────────────────
+const _generateSerial = async (storeId, firestoreDb, forceNew) => {
+  // Return existing draft if not forcing new
+  if (!forceNew) {
+    // Check memory first
+    if (_draftSerials.has(storeId)) {
+      const draft = _draftSerials.get(storeId);
+      console.log(`📋 Draft serial (memory): ${draft.serial}`);
+      return draft.serial;
+    }
+    // Check localStorage
+    const storedDraft = loadDraftFromStorage(storeId);
+    if (storedDraft) {
+      _draftSerials.set(storeId, storedDraft);
+      console.log(`📋 Draft serial (storage): ${storedDraft.serial}`);
+      return storedDraft.serial;
+    }
+  }
+
+  // Generate new serial
+  const lastNumber = await fetchLastNumberFromDB(storeId, firestoreDb);
+
+  // Also check session serials
+  let maxNum = lastNumber;
+  for (const s of _sessionSerials) {
+    const n = extractNumber(s);
+    if (n > maxNum) maxNum = n;
+  }
+
+  const nextNumber = maxNum + 1;
+  const serial     = formatSerial(nextNumber);
+
+  const draft = {
+    serial,
+    num:         nextNumber,
+    generatedAt: new Date().toISOString(),
+  };
+
+  // Store draft in memory + localStorage
+  _draftSerials.set(storeId, draft);
+  saveDraftToStorage(storeId, draft);
+
+  // Update tracker
+  await updateTracker(storeId, nextNumber);
+
+  // Track in session
+  _sessionSerials.add(serial);
+
+  // Broadcast to other tabs
+  try {
+    const bc = new BroadcastChannel(`billing_${storeId}`);
+    bc.postMessage({ type: "SERIAL_DRAFT", serial, num: nextNumber });
+    bc.close();
+  } catch {}
+
+  console.log(`🆕 New serial generated: ${serial}`);
+  return serial;
+};
+
+// ══════════════════════════════════════════════════════════════════════════════
+// PUBLIC API
+// ══════════════════════════════════════════════════════════════════════════════
+
 /**
- * Called when a bill is cancelled — does NOT increment committed.
- * The same serial will be reused for the next bill.
+ * Get next bill serial
+ * forceNew=false → return same draft (page-reload safe)
+ * forceNew=true  → generate new (after save/cancel)
  */
-export const markBillSerialCancelled = (serialNo, storeId = "default") => {
-  // Don't update committed — serial was never submitted
-  // Current stays the same, so on next unlock we get the same serial
-  console.log(`Serial ${serialNo} cancelled (not committed)`);
+export const getNextBillSerial = (
+  storeId     = "default",
+  firestoreDb = null,
+  forceNew    = false
+) =>
+  new Promise((resolve, reject) => {
+    _generateQueue.push({ storeId, firestoreDb, forceNew, resolve, reject });
+    processQueue();
+  });
+
+/**
+ * Call after bill successfully saved
+ * Clears draft → next call generates new serial
+ */
+export const confirmBillSerial = (serial, storeId = "default") => {
+  _draftSerials.delete(storeId);
+  removeDraftFromStorage(storeId);
+  _sessionSerials.delete(serial);
+
+  // Ensure localStorage counter is up to date
+  try {
+    const num     = extractNumber(serial);
+    const LS_KEY  = `${LS_COUNTER_PREFIX}${storeId}`;
+    const current = parseInt(localStorage.getItem(LS_KEY) || "0", 10);
+    if (num > current) {
+      localStorage.setItem(LS_KEY, String(num));
+    }
+  } catch {}
+
+  // Broadcast confirmation
+  try {
+    const num = extractNumber(serial);
+    const bc  = new BroadcastChannel(`billing_${storeId}`);
+    bc.postMessage({ type: "SERIAL_CONFIRMED", serial, num });
+    bc.close();
+  } catch {}
+
+  console.log(`✅ Serial confirmed: ${serial}`);
+};
+
+/**
+ * Call when bill is cancelled
+ * Clears draft → next call generates new serial
+ * Note: Counter NOT decremented (gap is acceptable)
+ */
+export const cancelBillSerial = (serial, storeId = "default") => {
+  _draftSerials.delete(storeId);
+  removeDraftFromStorage(storeId);
+  _sessionSerials.delete(serial);
+
+  try {
+    const bc = new BroadcastChannel(`billing_${storeId}`);
+    bc.postMessage({ type: "SERIAL_CANCELLED", serial });
+    bc.close();
+  } catch {}
+
+  console.log(`❌ Serial cancelled: ${serial}`);
+};
+
+/**
+ * Setup BroadcastChannel listener (call on app startup)
+ * Returns cleanup function
+ */
+export const setupSerialBroadcastListener = (storeId = "default") => {
+  try {
+    const bc = new BroadcastChannel(`billing_${storeId}`);
+    bc.onmessage = ({ data = {} }) => {
+      const { type, num } = data;
+      if (type === "SERIAL_DRAFT" || type === "SERIAL_CONFIRMED") {
+        const LS_KEY  = `${LS_COUNTER_PREFIX}${storeId}`;
+        const current = parseInt(localStorage.getItem(LS_KEY) || "0", 10);
+        if (num > current) {
+          localStorage.setItem(LS_KEY, String(num));
+          console.log(`📡 BC sync: ${type} → counter updated to ${num}`);
+        }
+        // Also invalidate draft so next generation fetches fresh
+        if (type === "SERIAL_CONFIRMED") {
+          _draftSerials.delete(storeId);
+        }
+      }
+    };
+    return () => bc.close();
+  } catch {
+    return () => {};
+  }
+};
+
+export const getDraftSerial    = (storeId = "default") =>
+  _draftSerials.get(storeId) || null;
+
+export const clearDraftSerial  = (storeId = "default") => {
+  _draftSerials.delete(storeId);
+  removeDraftFromStorage(storeId);
+};
+
+export const getNextItemSerial = () => {
+  _itemSerialCounter += 1;
+  return `ITEM-${Date.now()}-${_itemSerialCounter}`;
+};
+
+// Backwards compatibility
+export const markBillSerialUsed      = confirmBillSerial;
+export const markBillSerialCancelled = cancelBillSerial;
+
+/**
+ * ⚠️ EMERGENCY ONLY - resets counter to 0
+ * Do NOT call on normal app startup
+ */
+export const resetSerialCounter = async (storeId = "default") => {
+  try {
+    await ensureDBOpen();
+    const tracker = await localDB.serialTracker
+      .where("storeId").equals(storeId)
+      .first();
+    if (tracker) {
+      await localDB.serialTracker.update(tracker.id, {
+        lastNumber: 0,
+        updatedAt:  new Date().toISOString(),
+      });
+    }
+    localStorage.removeItem(`${LS_COUNTER_PREFIX}${storeId}`);
+    localStorage.removeItem(`${LS_DRAFT_PREFIX}${storeId}`);
+    _draftSerials.delete(storeId);
+    _sessionSerials.clear();
+    console.log(`🗑️ Serial counter RESET for store: ${storeId}`);
+  } catch (err) {
+    console.warn("Reset serial error:", err.message);
+  }
 };

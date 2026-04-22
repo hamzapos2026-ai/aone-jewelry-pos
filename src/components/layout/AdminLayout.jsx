@@ -5,7 +5,7 @@ import { useAuth } from "../../context/AuthContext";
 import { useTheme } from "../../hooks/useTheme";
 import { useLanguage } from "../../hooks/useLanguage";
 import { logoutUser } from "../../services/authService";
-import { LayoutDashboard, Users, Package, BarChart3, Settings, LogOut, Menu, X, Bell } from "lucide-react";
+import { LayoutDashboard, Users, Package, BarChart3, Settings, LogOut, Menu, X, Bell, Trash2 } from "lucide-react";
 import ThemeToggle from "./ThemeToggle";
 import LanguageSwitcher from "./LanguageSwitcher";
 
@@ -20,6 +20,7 @@ const AdminLayout = () => {
   const menuItems = [
     { path: "/admin/dashboard", label: "Dashboard", icon: LayoutDashboard },
     { path: "/admin/users", label: "Users", icon: Users },
+    { path: "/admin/deleted-bills", label: "Deleted Bills", icon: Trash2 },
     { path: "/admin/inventory", label: "Inventory", icon: Package },
     { path: "/admin/reports", label: "Reports", icon: BarChart3 },
     { path: "/admin/settings", label: "Settings", icon: Settings },
