@@ -1,157 +1,144 @@
-import React, { useEffect, useRef, useState } from "react";
-import { FiX, FiCamera } from "react-icons/fi";
-import { BsQrCode } from "react-icons/bs";
+// src/components/cashier/QRScannerModal.jsx
+// ✅ QR code ONLY — no manual input, only pending bills
+
+import React, { useState, useEffect, useRef, useCallback, memo } from "react";
+import { FiX, FiCheck } from "react-icons/fi";
+import { BsUpcScan } from "react-icons/bs";
 import { toast } from "react-hot-toast";
 
-const QRScannerModal = ({ isDark, onResult, onClose }) => {
-  const [manualInput, setManualInput] = useState("");
-  const [scanning, setScanning] = useState(false);
-  const videoRef = useRef(null);
-  const streamRef = useRef(null);
+const QRScannerModal = memo(({ isDark, onResult, onClose }) => {
+  const [scanSuccess, setScanSuccess] = useState(false);
+  const [lastScan, setLastScan]       = useState("");
+  const [qrBuffer, setQrBuffer]       = useState("");
 
-  const cardBg = isDark ? "bg-[#1a1208]" : "bg-white";
-  const border = isDark ? "border-[#2a1f0f]" : "border-gray-200";
-  const text = isDark ? "text-gray-100" : "text-gray-900";
-  const subText = isDark ? "text-gray-400" : "text-gray-500";
-  const inputBg = isDark
-    ? "bg-[#120d06] border-[#2a1f0f] text-gray-100"
-    : "bg-gray-50 border-gray-200 text-gray-900";
+  const qrBufferRef = useRef("");
+  const qrTimerRef  = useRef(null);
 
-  const startCamera = async () => {
-    try {
-      setScanning(true);
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment" },
-      });
-      streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-      }
-    } catch (err) {
-      toast.error("Camera access denied or not available");
-      setScanning(false);
-    }
-  };
+  const cardBg  = isDark ? "bg-[#1a1208]"     : "bg-white";
+  const border  = isDark ? "border-[#2a1f0f]" : "border-gray-200";
+  const text    = isDark ? "text-gray-100"     : "text-gray-900";
+  const subText = isDark ? "text-gray-400"     : "text-gray-500";
 
-  const stopCamera = () => {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((t) => t.stop());
-    }
-    setScanning(false);
-  };
+  const processQR = useCallback((code) => {
+    const clean = (code || "").trim();
+    if (!clean || clean.length < 1) return;
 
+    setScanSuccess(true);
+    setLastScan(clean);
+
+    // ✅ Instant — close modal + send result
+    setTimeout(() => {
+      onResult(clean);
+      setScanSuccess(false);
+    }, 300);
+  }, [onResult]);
+
+  // ── USB Scanner keyboard listener ──
   useEffect(() => {
-    return () => stopCamera();
-  }, []);
+    const onKeyDown = (e) => {
+      if (e.key === "Escape") { onClose(); return; }
 
-  const handleManualSubmit = () => {
-    if (!manualInput.trim()) {
-      toast.error("Please enter a bill number");
-      return;
-    }
-    onResult(manualInput.trim());
-  };
+      if (e.key === "Enter") {
+        const buf = qrBufferRef.current.trim();
+        if (buf.length >= 1) {
+          processQR(buf);
+          qrBufferRef.current = "";
+          setQrBuffer("");
+        }
+        return;
+      }
+
+      if (e.key.length === 1) {
+        qrBufferRef.current += e.key;
+        setQrBuffer(qrBufferRef.current);
+        clearTimeout(qrTimerRef.current);
+        qrTimerRef.current = setTimeout(() => {
+          qrBufferRef.current = "";
+          setQrBuffer("");
+        }, 150);
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      clearTimeout(qrTimerRef.current);
+    };
+  }, [processQR, onClose]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <div className={`relative w-full max-w-xs ${cardBg} rounded-2xl border ${border} shadow-2xl`}>
 
-      <div className={`relative w-full max-w-sm ${cardBg} rounded-2xl border ${border} shadow-2xl`}>
         {/* Header */}
         <div className={`flex items-center justify-between px-5 py-4 border-b ${border}`}>
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 bg-amber-500/20 rounded-xl flex items-center justify-center">
-              <BsQrCode className="text-amber-500 w-5 h-5" />
+            <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${
+              scanSuccess ? "bg-green-500/20" : "bg-amber-500/20"
+            }`}>
+              {scanSuccess
+                ? <FiCheck className="text-green-500 w-5 h-5" />
+                : <BsUpcScan className="text-amber-500 w-5 h-5" />}
             </div>
-            <h2 className={`font-bold text-base ${text}`}>Scan QR Code</h2>
+            <div>
+              <h2 className={`font-bold text-base ${text}`}>QR Scanner</h2>
+              <p className={`text-[10px] ${subText}`}>Pending bills only</p>
+            </div>
           </div>
           <button onClick={onClose} className={`p-1.5 rounded-lg ${subText} hover:text-red-500`}>
             <FiX className="w-5 h-5" />
           </button>
         </div>
 
-        <div className="p-5 space-y-4">
-          {/* Camera Preview */}
-          <div
-            className={`aspect-square rounded-xl overflow-hidden border-2 border-dashed ${
-              scanning ? "border-amber-500" : border
-            } flex items-center justify-center relative ${
-              isDark ? "bg-[#0f0a04]" : "bg-gray-100"
-            }`}
-          >
-            {scanning ? (
-              <>
-                <video
-                  ref={videoRef}
-                  autoPlay
-                  playsInline
-                  muted
-                  className="w-full h-full object-cover"
-                />
-                {/* Scanner Overlay */}
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="w-48 h-48 border-2 border-amber-500 rounded-lg">
-                    <div className="absolute top-0 left-0 w-6 h-6 border-t-4 border-l-4 border-amber-500 rounded-tl-lg" />
-                    <div className="absolute top-0 right-0 w-6 h-6 border-t-4 border-r-4 border-amber-500 rounded-tr-lg" />
-                    <div className="absolute bottom-0 left-0 w-6 h-6 border-b-4 border-l-4 border-amber-500 rounded-bl-lg" />
-                    <div className="absolute bottom-0 right-0 w-6 h-6 border-b-4 border-r-4 border-amber-500 rounded-br-lg" />
-                  </div>
+        {/* Scanner area */}
+        <div className="p-6">
+          <div className={`rounded-xl p-8 border-2 text-center transition-all ${
+            scanSuccess
+              ? "border-green-500 bg-green-500/10"
+              : qrBuffer
+                ? "border-amber-500 bg-amber-500/10 animate-pulse"
+                : `border-dashed ${isDark ? "border-amber-700 bg-amber-900/5" : "border-amber-300 bg-amber-50"}`
+          }`}>
+            <div className={`w-20 h-20 mx-auto rounded-2xl flex items-center justify-center mb-4 ${
+              scanSuccess ? "bg-green-500" : "bg-amber-500/20"
+            }`}>
+              {scanSuccess
+                ? <FiCheck className="text-white w-10 h-10" />
+                : <BsUpcScan className={`w-10 h-10 ${qrBuffer ? "text-amber-500 animate-pulse" : "text-amber-500"}`} />}
+            </div>
+
+            <p className={`text-lg font-bold ${text}`}>
+              {scanSuccess ? "✅ Found!"
+                : qrBuffer ? "⚡ Reading..."
+                : "Scan QR Code"}
+            </p>
+            <p className={`text-xs ${subText} mt-2`}>
+              {scanSuccess
+                ? `Bill: ${lastScan}`
+                : qrBuffer
+                  ? `Buffer: ${qrBuffer}`
+                  : "Point USB scanner at bill QR code"}
+            </p>
+
+            {qrBuffer && !scanSuccess && (
+              <div className="mt-4">
+                <div className="h-2 bg-amber-500/20 rounded-full overflow-hidden">
+                  <div className="h-full bg-amber-500 rounded-full animate-pulse"
+                    style={{ width: `${Math.min(qrBuffer.length * 10, 100)}%` }} />
                 </div>
-              </>
-            ) : (
-              <div className="text-center">
-                <BsQrCode className={`w-16 h-16 ${subText} mx-auto mb-3 opacity-30`} />
-                <p className={`text-sm ${subText}`}>Camera not started</p>
               </div>
             )}
           </div>
 
-          {/* Camera Controls */}
-          {!scanning ? (
-            <button
-              onClick={startCamera}
-              className="w-full py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold flex items-center justify-center gap-2 transition-all"
-            >
-              <FiCamera className="w-4 h-4" />
-              Start Camera
-            </button>
-          ) : (
-            <button
-              onClick={stopCamera}
-              className="w-full py-2.5 rounded-xl bg-red-500/20 border border-red-500/30 text-red-500 text-sm font-medium flex items-center justify-center gap-2 transition-all"
-            >
-              Stop Camera
-            </button>
-          )}
-
-          {/* Divider */}
-          <div className="flex items-center gap-3">
-            <div className={`flex-1 h-px ${isDark ? "bg-gray-800" : "bg-gray-200"}`} />
-            <span className={`text-xs ${subText}`}>OR enter manually</span>
-            <div className={`flex-1 h-px ${isDark ? "bg-gray-800" : "bg-gray-200"}`} />
-          </div>
-
-          {/* Manual Input */}
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={manualInput}
-              onChange={(e) => setManualInput(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleManualSubmit()}
-              placeholder="Enter bill number e.g. BILL-001"
-              className={`flex-1 px-3 py-2.5 rounded-xl border text-sm ${inputBg} focus:outline-none focus:border-amber-500`}
-            />
-            <button
-              onClick={handleManualSubmit}
-              className="px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold transition-all"
-            >
-              Search
-            </button>
-          </div>
+          <p className={`text-[10px] ${subText} mt-4 text-center`}>
+            Only <span className="text-amber-500 font-bold">unpaid/pending</span> bills will be processed
+          </p>
         </div>
       </div>
     </div>
   );
-};
+});
 
+QRScannerModal.displayName = "QRScannerModal";
 export default QRScannerModal;

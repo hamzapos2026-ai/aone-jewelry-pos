@@ -1,8 +1,6 @@
+// src/services/firebase.js
 import { initializeApp } from "firebase/app";
-import {
-  getFirestore,
-  enableIndexedDbPersistence,
-} from "firebase/firestore";
+import { getFirestore, enableIndexedDbPersistence } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 import { isSupported, getAnalytics } from "firebase/analytics";
 
@@ -20,16 +18,14 @@ const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 
-// ✅ Offline Persistence
 enableIndexedDbPersistence(db, { forceOwnership: false }).catch((err) => {
   if (err.code === "failed-precondition") {
-    console.warn("⚠️ Multiple tabs - persistence limited");
+    console.warn("Multiple tabs - persistence limited to one tab");
   } else if (err.code === "unimplemented") {
-    console.warn("⚠️ Browser does not support persistence");
+    console.warn("Browser does not support offline persistence");
   }
 });
 
-// ✅ Safe Analytics Init
 isSupported()
   .then((yes) => yes && getAnalytics(app))
   .catch(() => {});

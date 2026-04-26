@@ -1,25 +1,19 @@
-import React, { useState } from "react";
+// src/components/cashier/BillCard.jsx
+import React, { useState, useCallback, memo } from "react";
 import {
-  FiUser,
-  FiPhone,
-  FiClock,
-  FiCheckCircle,
-  FiXCircle,
-  FiEye,
-  FiTag,
-  FiChevronDown,
-  FiChevronUp,
-  FiAlertCircle,
-  FiEdit3,
+  FiUser, FiPhone, FiClock, FiCheckCircle, FiXCircle,
+  FiEye, FiTag, FiChevronDown, FiChevronUp,
+  FiAlertCircle, FiEdit3, FiZap,
 } from "react-icons/fi";
 import { MdPayment } from "react-icons/md";
 
-const BillCard = ({
+const BillCard = memo(({
   order,
   isDark,
   onPayment,
   onView,
   onCancel,
+  onEdit,
 }) => {
   const [expanded, setExpanded] = useState(false);
 
@@ -27,55 +21,48 @@ const BillCard = ({
   const isPending = order.status === "pending";
   const isCancelled = order.status === "cancelled";
 
-  // Theme classes - KHUD DEFINE
   const cardBg = isDark ? "bg-[#1a1208]" : "bg-white";
   const border = isDark ? "border-[#2a1f0f]" : "border-gray-200";
   const text = isDark ? "text-gray-100" : "text-gray-900";
   const subText = isDark ? "text-gray-400" : "text-gray-500";
   const rowBg = isDark ? "bg-[#0f0a04]" : "bg-gray-50";
 
-  // ✅ KHUD DEFINE - Props se nahi aayega
-  const getStatusStyle = (status) => {
-    switch (status) {
-      case "paid":
-        return isDark
+  const getStatusStyle = useCallback(
+    (status) => {
+      const map = {
+        paid: isDark
           ? "bg-emerald-900/30 text-emerald-400 border-emerald-700"
-          : "bg-emerald-50 text-emerald-700 border-emerald-200";
-      case "pending":
-        return isDark
+          : "bg-emerald-50 text-emerald-700 border-emerald-200",
+        pending: isDark
           ? "bg-amber-900/30 text-amber-400 border-amber-700"
-          : "bg-amber-50 text-amber-700 border-amber-200";
-      case "cancelled":
-        return isDark
+          : "bg-amber-50 text-amber-700 border-amber-200",
+        cancelled: isDark
           ? "bg-red-900/30 text-red-400 border-red-700"
-          : "bg-red-50 text-red-700 border-red-200";
-      default:
-        return isDark
+          : "bg-red-50 text-red-700 border-red-200",
+      };
+      return (
+        map[status] ||
+        (isDark
           ? "bg-gray-800 text-gray-400 border-gray-700"
-          : "bg-gray-50 text-gray-600 border-gray-200";
-    }
-  };
+          : "bg-gray-50 text-gray-600 border-gray-200")
+      );
+    },
+    [isDark]
+  );
 
-  // ✅ KHUD DEFINE - Props se nahi aayega
-  const getStatusIcon = (status) => {
-    switch (status) {
-      case "paid":
-        return <FiCheckCircle className="w-3.5 h-3.5" />;
-      case "pending":
-        return <FiClock className="w-3.5 h-3.5" />;
-      case "cancelled":
-        return <FiXCircle className="w-3.5 h-3.5" />;
-      default:
-        return <FiAlertCircle className="w-3.5 h-3.5" />;
-    }
-  };
+  const getStatusIcon = useCallback((status) => {
+    const map = {
+      paid: <FiCheckCircle className="w-3.5 h-3.5" />,
+      pending: <FiClock className="w-3.5 h-3.5" />,
+      cancelled: <FiXCircle className="w-3.5 h-3.5" />,
+    };
+    return map[status] || <FiAlertCircle className="w-3.5 h-3.5" />;
+  }, []);
 
-  const formatOrderDate = (timestamp) => {
+  const formatOrderDate = useCallback((timestamp) => {
     if (!timestamp) return "N/A";
     try {
-      const date = timestamp.toDate
-        ? timestamp.toDate()
-        : new Date(timestamp);
+      const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
       return date.toLocaleString("en-US", {
         month: "short",
         day: "numeric",
@@ -85,7 +72,13 @@ const BillCard = ({
     } catch {
       return "N/A";
     }
-  };
+  }, []);
+
+  const toggleExpand = useCallback(() => setExpanded((p) => !p), []);
+  const handleView = useCallback(() => onView(order), [onView, order]);
+  const handlePayment = useCallback(() => onPayment(order), [onPayment, order]);
+  const handleCancel = useCallback(() => onCancel(order), [onCancel, order]);
+  const handleEdit = useCallback(() => onEdit?.(order), [onEdit, order]);
 
   return (
     <div
@@ -94,7 +87,18 @@ const BillCard = ({
           isDark ? "hover:shadow-amber-900/20" : "hover:shadow-amber-500/10"
         }`}
     >
-      {/* ========== CARD HEADER ========== */}
+      {/* PAID indicator bar */}
+      {isPaid && (
+        <div className="h-1 bg-gradient-to-r from-emerald-500 to-green-400" />
+      )}
+      {isPending && (
+        <div className="h-1 bg-gradient-to-r from-amber-500 to-orange-400" />
+      )}
+      {isCancelled && (
+        <div className="h-1 bg-gradient-to-r from-red-500 to-red-400" />
+      )}
+
+      {/* CARD HEADER */}
       <div className="p-4">
         <div className="flex items-start justify-between gap-3">
           {/* Left Side */}
@@ -120,7 +124,6 @@ const BillCard = ({
             </div>
 
             <div className="flex-1 min-w-0">
-              {/* Bill Number + Status */}
               <div className="flex items-center gap-2 flex-wrap">
                 <h3 className={`font-bold text-base ${text}`}>
                   #{order.billSerial || order.serialNo || order.id?.slice(0, 8)}
@@ -132,9 +135,14 @@ const BillCard = ({
                   {getStatusIcon(order.status)}
                   {order.status?.toUpperCase()}
                 </span>
+                {isPaid && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-500 text-white">
+                    <FiCheckCircle className="w-3 h-3" />
+                    PAID
+                  </span>
+                )}
               </div>
 
-              {/* Customer Info */}
               <div className="flex items-center gap-3 mt-1.5 flex-wrap">
                 <span className={`flex items-center gap-1 text-xs ${subText}`}>
                   <FiUser className="w-3 h-3 text-amber-500" />
@@ -152,7 +160,6 @@ const BillCard = ({
                 </span>
               </div>
 
-              {/* Cashier */}
               {order.billerName && (
                 <p className={`text-xs ${subText} mt-1`}>
                   Cashier:{" "}
@@ -183,35 +190,45 @@ const BillCard = ({
         {/* Badges */}
         <div className="mt-3 flex items-center gap-2 flex-wrap">
           {order.paymentType && (
-            <span className={`text-xs px-2 py-1 rounded-lg ${
-              isDark ? "bg-gray-800 text-gray-300" : "bg-gray-100 text-gray-600"
-            }`}>
+            <span
+              className={`text-xs px-2 py-1 rounded-lg ${
+                isDark ? "bg-gray-800 text-gray-300" : "bg-gray-100 text-gray-600"
+              }`}
+            >
               💳 {order.paymentType}
             </span>
           )}
           {order.billDiscount > 0 && (
-            <span className={`text-xs px-2 py-1 rounded-lg ${
-              isDark ? "bg-green-900/30 text-green-400" : "bg-green-50 text-green-700"
-            }`}>
+            <span
+              className={`text-xs px-2 py-1 rounded-lg ${
+                isDark ? "bg-green-900/30 text-green-400" : "bg-green-50 text-green-700"
+              }`}
+            >
               🏷️ Discount: Rs. {order.billDiscount}
             </span>
           )}
           {order.lastEditedBy && (
-            <span className={`text-xs px-2 py-1 rounded-lg flex items-center gap-1 ${
-              isDark ? "bg-purple-900/30 text-purple-400" : "bg-purple-50 text-purple-700"
-            }`}>
+            <span
+              className={`text-xs px-2 py-1 rounded-lg flex items-center gap-1 ${
+                isDark ? "bg-purple-900/30 text-purple-400" : "bg-purple-50 text-purple-700"
+              }`}
+            >
               <FiEdit3 className="w-3 h-3" />
-              Edited
+              Edited by {order.lastEditedBy}
             </span>
           )}
         </div>
 
         {/* Expand Toggle */}
         <button
-          onClick={() => setExpanded(!expanded)}
+          onClick={toggleExpand}
           className={`flex items-center gap-1 mt-3 text-xs ${subText} hover:text-amber-500 transition-colors`}
         >
-          {expanded ? <FiChevronUp className="w-3.5 h-3.5" /> : <FiChevronDown className="w-3.5 h-3.5" />}
+          {expanded ? (
+            <FiChevronUp className="w-3.5 h-3.5" />
+          ) : (
+            <FiChevronDown className="w-3.5 h-3.5" />
+          )}
           {expanded ? "Hide" : "Show"} items ({order.items?.length || 0})
         </button>
 
@@ -226,7 +243,9 @@ const BillCard = ({
                 <div className="flex items-center gap-2 min-w-0">
                   <FiTag className="w-3 h-3 text-amber-500 flex-shrink-0" />
                   <span className={`${text} truncate`}>{item.productName}</span>
-                  <span className={subText}>#{item.serialId}</span>
+                  {item.serialId && (
+                    <span className={subText}>#{item.serialId}</span>
+                  )}
                 </div>
                 <div className="flex items-center gap-3 flex-shrink-0">
                   <span className={subText}>x{item.qty}</span>
@@ -249,9 +268,11 @@ const BillCard = ({
                   <span className="text-green-500">- Rs. {order.billDiscount}</span>
                 </div>
               )}
-              <div className={`flex items-center justify-between text-xs py-2 px-3 rounded-lg ${
-                isDark ? "bg-amber-900/20" : "bg-amber-50"
-              }`}>
+              <div
+                className={`flex items-center justify-between text-xs py-2 px-3 rounded-lg ${
+                  isDark ? "bg-amber-900/20" : "bg-amber-50"
+                }`}
+              >
                 <span className={`font-bold ${text}`}>Total</span>
                 <span className="font-bold text-amber-500">
                   Rs. {order.totalAmount || 0}
@@ -262,13 +283,15 @@ const BillCard = ({
         )}
       </div>
 
-      {/* ========== ACTION BUTTONS ========== */}
-      <div className={`px-4 py-3 border-t ${border} flex items-center gap-2 flex-wrap ${
-        isDark ? "bg-[#0f0a04]/50" : "bg-gray-50/50"
-      }`}>
+      {/* ACTION BUTTONS */}
+      <div
+        className={`px-4 py-3 border-t ${border} flex items-center gap-2 flex-wrap ${
+          isDark ? "bg-[#0f0a04]/50" : "bg-gray-50/50"
+        }`}
+      >
         {/* View */}
         <button
-          onClick={() => onView(order)}
+          onClick={handleView}
           className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium 
             border ${border} transition-all active:scale-95 ${
             isDark
@@ -277,26 +300,42 @@ const BillCard = ({
           }`}
         >
           <FiEye className="w-3.5 h-3.5" />
-          View Bill
+          View
         </button>
+
+        {/* Edit - Only Pending */}
+        {isPending && (
+          <button
+            onClick={handleEdit}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium 
+              border transition-all active:scale-95 ${
+              isDark
+                ? "border-amber-700 text-amber-400 hover:bg-amber-900/30"
+                : "border-amber-300 text-amber-600 hover:bg-amber-50"
+            }`}
+          >
+            <FiEdit3 className="w-3.5 h-3.5" />
+            Edit
+          </button>
+        )}
 
         {/* Payment - Only Pending */}
         {isPending && (
           <button
-            onClick={() => onPayment(order)}
+            onClick={handlePayment}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium 
               bg-emerald-500 hover:bg-emerald-600 text-white transition-all 
               shadow-md shadow-emerald-500/20 active:scale-95"
           >
-            <FiCheckCircle className="w-3.5 h-3.5" />
-            Receive Payment
+            <FiZap className="w-3.5 h-3.5" />
+            Pay Now
           </button>
         )}
 
         {/* Cancel - Only Pending */}
         {isPending && (
           <button
-            onClick={() => onCancel(order)}
+            onClick={handleCancel}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium 
               bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/30 
               transition-all active:scale-95"
@@ -308,15 +347,27 @@ const BillCard = ({
 
         {/* Paid Info */}
         {isPaid && (
-          <span className="flex items-center gap-1.5 text-xs text-emerald-500 font-medium ml-auto">
+          <span className="flex items-center gap-1.5 text-xs text-emerald-500 font-bold ml-auto">
             <FiCheckCircle className="w-3.5 h-3.5" />
             Paid via {order.paymentType || "Cash"}
+            {order.paidAt && (
+              <span className={`text-xs ${subText} font-normal`}>
+                · {new Date(
+                    order.paidAt?.toDate?.() || order.paidAt
+                  ).toLocaleTimeString("en-US", {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+              </span>
+            )}
           </span>
         )}
 
         {/* Cancelled Info */}
         {isCancelled && (
-          <span className={`text-xs ${subText} italic flex items-center gap-1 ml-auto`}>
+          <span
+            className={`text-xs ${subText} italic flex items-center gap-1 ml-auto`}
+          >
             <FiXCircle className="w-3 h-3 text-red-400" />
             {order.cancelReason || "Cancelled"}
           </span>
@@ -324,6 +375,7 @@ const BillCard = ({
       </div>
     </div>
   );
-};
+});
 
+BillCard.displayName = "BillCard";
 export default BillCard;

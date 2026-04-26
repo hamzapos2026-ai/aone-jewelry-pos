@@ -144,6 +144,14 @@ const soundEffects = {
   },
 };
 
+export const initAudio = () => {
+  try {
+    getAudioContext();
+  } catch (e) {
+    console.warn("Audio context initialization failed:", e);
+  }
+};
+
 export const playSound = (soundName) => {
   try {
     if (soundEffects[soundName]) {
@@ -155,4 +163,4 @@ export const playSound = (soundName) => {
   }
 };
 
-export default { playSound };
+export default { playSound, initAudio };

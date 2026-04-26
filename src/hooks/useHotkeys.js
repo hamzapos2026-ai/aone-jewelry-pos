@@ -1,24 +1,30 @@
 // src/hooks/useHotkeys.js
 import { useEffect, useCallback, useRef } from "react";
 
+// Keys that work even when an input is focused
 const ALWAYS_GLOBAL = new Set([
-  "Escape", "F8", "F9", "Insert", "Home", "End",
-  "Delete", "Minus",
-  "PageUp", "PageDown",
+  "Escape", "F8", "F9", "Insert",
+  "Home", "End", "Delete",
+  "Minus", "PageUp", "PageDown",
   "ArrowUp", "ArrowDown",
-  "numpadAdd", "numpadSubtract",
-  "numpadMultiply", "numpadDivide",
+  "numpadAdd", "numpadSubtract", "numpadMultiply", "numpadDivide",
 ]);
 
-const ONE_SHOT_SIMPLE = new Set([
-  "Insert", "F8", "F9", "End", "PageUp", "PageDown", "Escape",
+// Keys that must NOT auto-repeat (fire once per press)
+const ONE_SHOT = new Set([
+  "Insert", "F8", "F9", "Escape",
+  "End", "PageUp", "PageDown",
+  "Delete",
 ]);
+
+// Minimum ms between two fires of the same key
+const DEBOUNCE_MS = 280;
 
 const useKeyboardShortcuts = (shortcuts, enabled = true) => {
-  const deleteFiredCount = useRef({ Minus: 0, numpadSubtract: 0, Delete: 0 });
-  const keyHeld          = useRef(new Set());
-  const shortcutsRef     = useRef(shortcuts);
-  const enabledRef       = useRef(enabled);
+  const shortcutsRef = useRef(shortcuts);
+  const enabledRef   = useRef(enabled);
+  const keyHeld      = useRef(new Set());   // for delete-type keys
+  const lastFire     = useRef({});          // timestamp per key
 
   useEffect(() => { shortcutsRef.current = shortcuts; }, [shortcuts]);
   useEffect(() => { enabledRef.current   = enabled;   }, [enabled]);
@@ -26,25 +32,20 @@ const useKeyboardShortcuts = (shortcuts, enabled = true) => {
   const handleKeyDown = useCallback((e) => {
     if (!enabledRef.current) return;
 
+    // ── Normalise key name ────────────────────────────────────────────────
     let key = e.key;
-    if (e.key === "-" || e.code === "Minus")  key = "Minus";
-    if (e.code === "NumpadAdd")                key = "numpadAdd";
-    if (e.code === "NumpadSubtract")           key = "numpadSubtract";
-    if (e.code === "NumpadMultiply")           key = "numpadMultiply";
-    if (e.code === "NumpadDivide")             key = "numpadDivide";
+    if (e.code === "Minus" || e.key === "-") key = "Minus";
+    if (e.code === "NumpadAdd")              key = "numpadAdd";
+    if (e.code === "NumpadSubtract")         key = "numpadSubtract";
+    if (e.code === "NumpadMultiply")         key = "numpadMultiply";
+    if (e.code === "NumpadDivide")           key = "numpadDivide";
 
-    if (e.repeat && ONE_SHOT_SIMPLE.has(key)) {
+    // ── Drop auto-repeat for guarded keys ─────────────────────────────────
+    if (e.repeat && ONE_SHOT.has(key)) {
       e.preventDefault();
       return;
     }
-
-    if (e.repeat && (key === "Minus" || key === "numpadSubtract" || key === "Delete")) {
-      e.preventDefault();
-      return;
-    }
-
-    if (keyHeld.current.has(key) &&
-       (key === "Minus" || key === "numpadSubtract" || key === "Delete")) {
+    if (e.repeat && (key === "Minus" || key === "numpadSubtract")) {
       e.preventDefault();
       return;
     }
@@ -52,28 +53,39 @@ const useKeyboardShortcuts = (shortcuts, enabled = true) => {
     const handler = shortcutsRef.current?.[key];
     if (!handler) return;
 
-    const tag = e.target?.tagName || "";
+    // ── Editable element check ────────────────────────────────────────────
+    const tag        = e.target?.tagName ?? "";
     const isEditable =
       ["INPUT", "TEXTAREA", "SELECT"].includes(tag) ||
-      e.target?.isContentEditable;
+      !!e.target?.isContentEditable;
 
     if (isEditable && !ALWAYS_GLOBAL.has(key)) return;
 
-    if (key === "Minus" || key === "numpadSubtract" || key === "Delete") {
-      if (deleteFiredCount.current[key] >= 1) {
-        e.preventDefault();
-        return;
-      }
-      deleteFiredCount.current[key] = 1;
+    // ── Debounce one-shot keys ────────────────────────────────────────────
+    const now = Date.now();
+    if (ONE_SHOT.has(key)) {
+      const last = lastFire.current[key] ?? 0;
+      if (now - last < DEBOUNCE_MS) { e.preventDefault(); return; }
+      lastFire.current[key] = now;
+    }
+
+    // ── Single-fire guard for minus / numpad-minus ────────────────────────
+    if (key === "Minus" || key === "numpadSubtract") {
+      if (keyHeld.current.has(key)) { e.preventDefault(); return; }
       keyHeld.current.add(key);
     }
 
+    // ── Prevent browser default for all handled keys ──────────────────────
     e.preventDefault();
     e.stopPropagation();
 
-    if ((key === "Delete" || key === "Minus" || key === "numpadSubtract") && isEditable) {
+    // ── Blur input first, then fire delete-type handler ───────────────────
+    if (
+      (key === "Delete" || key === "Minus" || key === "numpadSubtract") &&
+      isEditable
+    ) {
       e.target.blur();
-      requestAnimationFrame(handler);
+      requestAnimationFrame(() => handler());
       return;
     }
 
@@ -81,16 +93,10 @@ const useKeyboardShortcuts = (shortcuts, enabled = true) => {
   }, []);
 
   const handleKeyUp = useCallback((e) => {
-    if (!enabledRef.current) return;
     let key = e.key;
-    if (e.key === "-" || e.code === "Minus") key = "Minus";
+    if (e.code === "Minus" || e.key === "-") key = "Minus";
     if (e.code === "NumpadSubtract")          key = "numpadSubtract";
-
     keyHeld.current.delete(key);
-
-    if (key === "Minus" || key === "numpadSubtract" || key === "Delete") {
-      deleteFiredCount.current[key] = 0;
-    }
   }, []);
 
   useEffect(() => {

@@ -1,158 +1,143 @@
-// src/services/offlineSync.js - FINAL FIXED
-import { doc, setDoc, getDoc, serverTimestamp } from "firebase/firestore";
-import { db }                    from "./firebase";
+// src/services/offlineSync.js
+// ✅ Background sync — never blocks UI
+// ✅ Processes pending orders in batches
+
+import {
+  doc, setDoc, serverTimestamp, getDoc,
+} from "firebase/firestore";
+import { db }                from "./firebase";
 import { localDB, ensureDBOpen } from "./offlineDb";
+import { generateBillSerial }    from "./serialService";
 
-const makeDocId = (storeId, serialNo) =>
-  `${storeId}_${serialNo}`.replace(/[^a-zA-Z0-9_-]/g, "_");
-
-// ─── Count pending ────────────────────────────────────────────────────────────
+// ─── Get count of unsynced orders ────────────────────────────────────────────
 export const getOfflineOrdersCount = async () => {
   try {
     const ok = await ensureDBOpen();
-    if (!ok) {
-      // Check localStorage fallback too
-      const list = JSON.parse(
-        localStorage.getItem("offline_pending_orders") || "[]"
-      );
-      return list.length;
-    }
+    if (!ok) return _getLocalStorageCount();
+
     const count = await localDB.pendingOrders
-      .where("syncStatus").equals("pending")
-      .count();
-    return count;
+      .where("syncStatus")
+      .equals("pending")
+      .count()
+      .catch(() => 0);
+
+    return count + _getLocalStorageCount();
+  } catch {
+    return _getLocalStorageCount();
+  }
+};
+
+const _getLocalStorageCount = () => {
+  try {
+    const list = JSON.parse(
+      localStorage.getItem("offline_pending_orders") || "[]"
+    );
+    return list.length;
   } catch {
     return 0;
   }
 };
 
-// ─── Sync all pending ─────────────────────────────────────────────────────────
+// ─── Sync all pending orders to Firestore ────────────────────────────────────
 export const syncOfflineOrders = async () => {
-  const ok = await ensureDBOpen();
-  if (!ok) {
-    return await _syncFromLocalStorage();
-  }
+  if (!navigator.onLine) return { synced: 0, failed: 0 };
 
   let synced = 0;
   let failed = 0;
 
+  // ── Sync IndexedDB orders ──────────────────────────────────────────────
   try {
-    // ✅ Only process "pending" — not already-synced records
-    const pending = await localDB.pendingOrders
-      .where("syncStatus").equals("pending")
-      .toArray();
+    const ok = await ensureDBOpen();
+    if (ok) {
+      const pending = await localDB.pendingOrders
+        .where("syncStatus")
+        .equals("pending")
+        .limit(20)   // Batch of 20 — don't overwhelm
+        .toArray()
+        .catch(() => []);
 
-    console.log(`🔄 Syncing ${pending.length} offline orders...`);
+      for (const order of pending) {
+        try {
+          await _syncSingleOrder(order);
 
-    for (const order of pending) {
-      try {
-        // ✅ Use stored firestoreDocId or regenerate it
-        const docId  = order.firestoreDocId ||
-                       makeDocId(order.storeId || "default", order.serialNo || "");
-        const docRef = doc(db, "orders", docId);
+          // Mark as synced
+          await localDB.pendingOrders
+            .update(order.id, { syncStatus: "synced", syncedAt: new Date().toISOString() })
+            .catch(() => {});
 
-        // ✅ Check if already exists in Firestore (another tab may have synced)
-        const snap = await getDoc(docRef);
-
-        if (snap.exists()) {
-          // Already there — just mark local as synced
-          await localDB.pendingOrders.update(order.id, {
-            syncStatus:  "synced",
-            firestoreId: docId,
-            syncedAt:    new Date().toISOString(),
-          });
           synced++;
-          console.log(`✅ Already synced: ${order.serialNo}`);
-          continue;
+        } catch (err) {
+          console.warn("[sync] Failed to sync order:", order.serialNo, err.message);
+
+          // Mark as failed (retry next time)
+          await localDB.pendingOrders
+            .update(order.id, {
+              syncStatus:   "failed",
+              failReason:   err.message,
+              lastAttempt:  new Date().toISOString(),
+            })
+            .catch(() => {});
+
+          failed++;
         }
-
-        // ✅ setDoc with fixed ID — safe even if called twice
-        await setDoc(docRef, {
-          ...order,
-          firestoreDocId: docId,
-          source:         "offline_synced",
-          syncedAt:       serverTimestamp(),
-          createdAt:      serverTimestamp(),
-        });
-
-        await localDB.pendingOrders.update(order.id, {
-          syncStatus:  "synced",
-          firestoreId: docId,
-          syncedAt:    new Date().toISOString(),
-        });
-
-        synced++;
-        console.log(`✅ Synced: ${order.serialNo} → ${docId}`);
-
-      } catch (err) {
-        console.error(`❌ Sync failed for ${order.serialNo}:`, err.message);
-        failed++;
       }
     }
-
-    // Also sync localStorage fallback
-    const lsResult = await _syncFromLocalStorage();
-    synced += lsResult.synced;
-    failed += lsResult.failed;
-
   } catch (err) {
-    console.error("❌ syncOfflineOrders error:", err);
+    console.warn("[sync] IndexedDB sync error:", err.message);
   }
 
-  return { success: true, synced, failed };
-};
-
-// ─── Sync from localStorage fallback ─────────────────────────────────────────
-const _syncFromLocalStorage = async () => {
-  let synced = 0;
-  let failed = 0;
-
+  // ── Sync localStorage orders ───────────────────────────────────────────
   try {
-    const pendingList = JSON.parse(
+    const list = JSON.parse(
       localStorage.getItem("offline_pending_orders") || "[]"
     );
-    if (!pendingList.length) return { synced, failed };
 
     const remaining = [];
 
-    for (const lsKey of pendingList) {
+    for (const lsKey of list) {
       try {
         const raw = localStorage.getItem(lsKey);
         if (!raw) continue;
 
-        const order  = JSON.parse(raw);
-        const docId  = order.firestoreDocId ||
-                       makeDocId(order.storeId || "default", order.serialNo || "");
-        const docRef = doc(db, "orders", docId);
+        const order = JSON.parse(raw);
+        await _syncSingleOrder(order);
 
-        const snap = await getDoc(docRef);
-        if (!snap.exists()) {
-          await setDoc(docRef, {
-            ...order,
-            firestoreDocId: docId,
-            source:         "offline_localstorage_synced",
-            syncedAt:       serverTimestamp(),
-            createdAt:      serverTimestamp(),
-          });
-        }
-
-        // Remove from localStorage after sync
         localStorage.removeItem(lsKey);
         synced++;
-        console.log(`✅ LS synced: ${order.serialNo}`);
-
-      } catch (err) {
-        console.error(`❌ LS sync failed for ${lsKey}:`, err.message);
-        remaining.push(lsKey);
+      } catch {
+        remaining.push(lsKey); // Keep for next retry
         failed++;
       }
     }
 
-    localStorage.setItem("offline_pending_orders", JSON.stringify(remaining));
-
-  } catch (err) {
-    console.error("LS sync error:", err);
-  }
+    localStorage.setItem(
+      "offline_pending_orders",
+      JSON.stringify(remaining)
+    );
+  } catch { /* ignore */ }
 
   return { synced, failed };
+};
+
+// ── Sync a single order to Firestore ─────────────────────────────────────────
+const _syncSingleOrder = async (order) => {
+  const storeId  = order.storeId  || "default";
+  const serialNo = order.serialNo;
+  const docId    = order.firestoreDocId ||
+    `${storeId}_${serialNo}`.replace(/[^a-zA-Z0-9_-]/g, "_");
+
+  // Check if already synced (prevents duplicate on retry)
+  const existing = await getDoc(doc(db, "orders", docId)).catch(() => null);
+  if (existing?.exists()) return; // Already in Firestore
+
+  const { syncStatus, savedAt, source, id, ...cleanOrder } = order;
+
+  await setDoc(doc(db, "orders", docId), {
+    ...cleanOrder,
+    serialNo,
+    syncedFromOffline: true,
+    originalSource:    source || "offline",
+    syncedAt:          serverTimestamp(),
+    savedAt:           serverTimestamp(),
+  });
 };

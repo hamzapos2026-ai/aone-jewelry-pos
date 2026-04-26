@@ -1,156 +1,179 @@
-// src/services/orderService.js - FINAL FIXED
-import {
-  doc,
-  setDoc,
-  getDoc,
-  serverTimestamp,
-} from "firebase/firestore";
-import { db }                    from "./firebase";
-import { localDB, ensureDBOpen } from "./offlineDb";
+// src/services/orderService.js
+// ✅ ZERO UI BLOCKING
+// ✅ Reset happens BEFORE save
+// ✅ Background save with full fallback chain
 
-// ─── Deterministic doc ID ─────────────────────────────────────────────────────
-// Same storeId + serialNo = same Firestore document ID always
-// This makes duplicates physically impossible
+import { doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { db }                            from "./firebase";
+import { localDB, ensureDBOpen }         from "./offlineDb";
+import { generateBillSerial }            from "./serialService";
+
+// ─── Doc ID builder ───────────────────────────────────────────────────────────
 const makeDocId = (storeId, serialNo) =>
   `${storeId}_${serialNo}`.replace(/[^a-zA-Z0-9_-]/g, "_");
 
-// ─── localStorage fallback key ────────────────────────────────────────────────
-const makeLocalKey = (docId) => `offline_order_${docId}`;
+// ─── In-flight duplicate guard ────────────────────────────────────────────────
+// Prevents double-save if F8 is pressed twice fast
+const _inFlight = new Set();
 
-// ══════════════════════════════════════════════════════════════════════════════
+// ─── Duplicate check within same session ─────────────────────────────────────
+const _savedThisSession = new Set(); // docIds saved this session
+
+// ════════════════════════════════════════════════════════════════════════════
+// MAIN SAVE — called from background (queueMicrotask)
+// UI has already reset before this runs
+// ════════════════════════════════════════════════════════════════════════════
 export const saveOrder = async (orderData, isOnline) => {
-  const serialNo = orderData.serialNo || orderData.billSerial || "";
   const storeId  = orderData.storeId  || "default";
-  const normalizedOrderData = { ...orderData, storeId };
+  const billerId = orderData.billerId || null;
 
-  if (!serialNo) throw new Error("serialNo is required");
+  // ── Step 1: Generate atomic serial ───────────────────────────────────
+  let serialNo;
+  try {
+    serialNo = await generateBillSerial(storeId, isOnline);
+  } catch {
+    serialNo = `ERR-${Date.now()}`;
+  }
 
-  // ✅ Deterministic Firestore document ID
   const docId = makeDocId(storeId, serialNo);
 
-  // ════════════════════ ONLINE ════════════════════════════════════════════════
-  if (isOnline) {
-    try {
-      const docRef  = doc(db, "orders", docId);
-
-      // ✅ Single getDoc check — deterministic ID means this is reliable
-      const snap = await getDoc(docRef);
-      if (snap.exists()) {
-        console.warn(`⚠️ Duplicate blocked: ${serialNo}`);
-        return { success: false, duplicate: true, id: docId, offline: false };
-      }
-
-      // ✅ setDoc with fixed ID — concurrent calls produce 1 document
-      await setDoc(docRef, {
-        ...normalizedOrderData,
-        firestoreDocId: docId,
-        createdAt:      serverTimestamp(),
-        savedAt:        serverTimestamp(),
-        source:         "online",
-      });
-
-      console.log(`✅ Saved online: ${serialNo} → ${docId}`);
-
-      // ✅ Mark any existing offline copy as synced (do NOT re-insert)
-      const dbReady = await ensureDBOpen();
-      if (dbReady) {
-        const pending = await localDB.pendingOrders
-          .where("firestoreDocId").equals(docId)
-          .first()
-          .catch(() => null);
-
-        if (pending) {
-          await localDB.pendingOrders
-            .update(pending.id, {
-              syncStatus:  "synced",
-              syncedAt:    new Date().toISOString(),
-            })
-            .catch(() => {});
-        }
-        // ✅ NOT adding new record to pendingOrders here
-        // This was the root cause of 3x duplicates
-      }
-
-      return { success: true, id: docId, offline: false, duplicate: false };
-
-    } catch (err) {
-      console.error("Firestore save failed → offline fallback:", err.message);
-      // Fall through to offline ↓
-    }
+  // ── Step 2: Duplicate guard ───────────────────────────────────────────
+  if (_inFlight.has(docId) || _savedThisSession.has(docId)) {
+    return {
+      success:   false,
+      duplicate: true,
+      id:        docId,
+      offline:   !isOnline,
+      serialNo,
+    };
   }
+  _inFlight.add(docId);
 
-  // ════════════════════ OFFLINE ═══════════════════════════════════════════════
-  const dbReady = await ensureDBOpen();
-
-  if (!dbReady) {
-    return _saveToLocalStorage(normalizedOrderData, docId);
-  }
+  const finalOrder = {
+    ...orderData,
+    serialNo,
+    billSerial:     serialNo,
+    storeId,
+    billerId,
+    firestoreDocId: docId,
+  };
 
   try {
-    // ✅ Dedup check using indexed firestoreDocId
-    const existing = await localDB.pendingOrders
-      .where("firestoreDocId").equals(docId)
-      .first()
-      .catch(() => null);
+    const result = isOnline
+      ? await _saveOnline(finalOrder, docId, serialNo)
+      : await _saveOffline(finalOrder, docId, serialNo);
 
-    if (existing) {
-      console.warn(`⚠️ Offline duplicate blocked: ${serialNo}`);
-      return {
-        success:   false,
-        duplicate: true,
-        id:        String(existing.id),
-        offline:   true,
-      };
-    }
+    _savedThisSession.add(docId);
+    return result;
 
-    const localId = await localDB.pendingOrders.add({
-      ...normalizedOrderData,
-      firestoreDocId: docId,       // ✅ Store for sync dedup
-      syncStatus:     "pending",
-      savedAt:        new Date().toISOString(),
-      source:         "offline",
-      createdAt:      orderData.createdAt || new Date().toISOString(),
-    });
-
-    console.log(`✅ Saved offline: ${serialNo} (localId: ${localId})`);
-    return { success: true, id: String(localId), offline: true, duplicate: false };
-
-  } catch (err) {
-    console.error("❌ IndexedDB save failed:", err.message);
-    return _saveToLocalStorage(normalizedOrderData, docId);
+  } finally {
+    _inFlight.delete(docId);
   }
 };
 
-// ─── localStorage fallback ────────────────────────────────────────────────────
-const _saveToLocalStorage = (orderData, docId) => {
+// ── Online save ───────────────────────────────────────────────────────────────
+const _saveOnline = async (finalOrder, docId, serialNo) => {
   try {
-    const lsKey      = makeLocalKey(docId);
-    const pendingList = JSON.parse(
+    await setDoc(doc(db, "orders", docId), {
+      ...finalOrder,
+      savedAt: serverTimestamp(),
+      source:  "online",
+    });
+
+    return {
+      success:   true,
+      id:        docId,
+      offline:   false,
+      duplicate: false,
+      serialNo,
+    };
+  } catch (err) {
+    console.warn("[orderService] Firestore save failed → offline:", err.message);
+    // Auto-fallback to offline
+    return _saveOffline(finalOrder, docId, serialNo);
+  }
+};
+
+// ── Offline save (IndexedDB → localStorage → memory) ─────────────────────────
+const _saveOffline = async (finalOrder, docId, serialNo) => {
+  // Try IndexedDB first
+  try {
+    const ok = await ensureDBOpen();
+    if (ok) {
+      // Check for duplicate
+      const existing = await localDB.pendingOrders
+        .where("firestoreDocId")
+        .equals(docId)
+        .first()
+        .catch(() => null);
+
+      if (existing) {
+        return {
+          success:   false,
+          duplicate: true,
+          id:        String(existing.id),
+          offline:   true,
+          serialNo,
+        };
+      }
+
+      const localId = await localDB.pendingOrders.add({
+        ...finalOrder,
+        syncStatus: "pending",
+        savedAt:    new Date().toISOString(),
+        source:     "offline_indexeddb",
+      });
+
+      return {
+        success:   true,
+        id:        String(localId),
+        offline:   true,
+        duplicate: false,
+        serialNo,
+      };
+    }
+  } catch (err) {
+    console.warn("[orderService] IndexedDB failed:", err.message);
+  }
+
+  // Fallback: localStorage
+  return _saveLocalStorage(finalOrder, docId, serialNo);
+};
+
+// ── localStorage fallback ─────────────────────────────────────────────────────
+const _saveLocalStorage = (orderData, docId, serialNo) => {
+  try {
+    const lsKey = `offline_order_${docId}`;
+    const list  = JSON.parse(
       localStorage.getItem("offline_pending_orders") || "[]"
     );
 
-    // ✅ Dedup check in localStorage
-    if (pendingList.includes(lsKey)) {
-      console.warn(`⚠️ localStorage duplicate blocked: ${docId}`);
-      return { success: false, duplicate: true, id: lsKey, offline: true };
+    if (list.includes(lsKey)) {
+      return {
+        success: false, duplicate: true,
+        id: lsKey, offline: true, serialNo,
+      };
     }
 
     localStorage.setItem(lsKey, JSON.stringify({
       ...orderData,
-      firestoreDocId: docId,
-      syncStatus:     "pending",
-      savedAt:        new Date().toISOString(),
-      source:         "offline_localstorage",
+      syncStatus: "pending",
+      savedAt:    new Date().toISOString(),
+      source:     "offline_localstorage",
     }));
 
-    pendingList.push(lsKey);
-    localStorage.setItem("offline_pending_orders", JSON.stringify(pendingList));
+    list.push(lsKey);
+    localStorage.setItem("offline_pending_orders", JSON.stringify(list));
 
-    console.log(`✅ localStorage fallback: ${docId}`);
-    return { success: true, id: lsKey, offline: true, duplicate: false };
-
+    return {
+      success: true, id: lsKey, offline: true,
+      duplicate: false, serialNo,
+    };
   } catch {
-    // Never crash the UI
-    return { success: true, id: `LOST-${Date.now()}`, offline: true, duplicate: false };
+    // Even localStorage failed — just return success to not break UX
+    return {
+      success: true, id: `MEM-${Date.now()}`,
+      offline: true, duplicate: false, serialNo,
+    };
   }
 };

@@ -1,17 +1,12 @@
-import React, { useState, useEffect } from "react";
+// src/components/cashier/BillSearchBar.jsx
+import React, { useState, useCallback, useRef, memo } from "react";
 import {
-  FiSearch,
-  FiXCircle,
-  FiRefreshCw,
-  FiClock,
-  FiCheckCircle,
-  FiX,
-  FiAlertTriangle,
-  FiFileText,
+  FiSearch, FiXCircle, FiRefreshCw, FiClock, FiCheckCircle,
+  FiX, FiAlertTriangle, FiFileText,
 } from "react-icons/fi";
 import { BsQrCode } from "react-icons/bs";
 
-const BillSearchBar = ({
+const BillSearchBar = memo(({
   isDark,
   searchQuery,
   setSearchQuery,
@@ -26,6 +21,7 @@ const BillSearchBar = ({
   onBillSelect,
 }) => {
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const blurTimerRef = useRef(null);
 
   const cardBg = isDark ? "bg-[#1a1208]" : "bg-white";
   const border = isDark ? "border-[#2a1f0f]" : "border-gray-200";
@@ -36,96 +32,79 @@ const BillSearchBar = ({
     : "bg-gray-50 border-gray-200";
 
   const filterTabs = [
-    {
-      key: "all",
-      label: "All Bills",
-      count: stats.total,
-      icon: <FiFileText className="w-3 h-3" />,
-    },
-    {
-      key: "pending",
-      label: "Pending",
-      count: stats.pending,
-      icon: <FiClock className="w-3 h-3" />,
-    },
-    {
-      key: "paid",
-      label: "Paid",
-      count: stats.paid,
-      icon: <FiCheckCircle className="w-3 h-3" />,
-    },
-    {
-      key: "cancelled",
-      label: "Cancelled",
-      count: stats.cancelled,
-      icon: <FiX className="w-3 h-3" />,
-    },
+    { key: "all", label: "All", count: stats.total, icon: <FiFileText className="w-3 h-3" /> },
+    { key: "pending", label: "Pending", count: stats.pending, icon: <FiClock className="w-3 h-3" /> },
+    { key: "paid", label: "Paid", count: stats.paid, icon: <FiCheckCircle className="w-3 h-3" /> },
+    { key: "cancelled", label: "Cancelled", count: stats.cancelled, icon: <FiX className="w-3 h-3" /> },
   ];
 
-  const handleInputChange = (e) => {
-    const value = e.target.value;
-    setSearchQuery(value);
-    setShowSuggestions(value.length >= 2);
-  };
+  const handleInputChange = useCallback(
+    (e) => {
+      const value = e.target.value;
+      setSearchQuery(value);
+      setShowSuggestions(value.length >= 2);
+    },
+    [setSearchQuery]
+  );
 
-  const handleSuggestionClick = (bill) => {
+  const handleSuggestionClick = useCallback(
+    (bill) => {
+      setSearchQuery("");
+      setShowSuggestions(false);
+      onBillSelect?.(bill);
+    },
+    [setSearchQuery, onBillSelect]
+  );
+
+  const handleClear = useCallback(() => {
     setSearchQuery("");
     setShowSuggestions(false);
-    if (onBillSelect) onBillSelect(bill);
-  };
+  }, [setSearchQuery]);
 
-  const handleInputFocus = () => {
+  const handleBlur = useCallback(() => {
+    blurTimerRef.current = setTimeout(() => setShowSuggestions(false), 200);
+  }, []);
+
+  const handleFocus = useCallback(() => {
+    if (blurTimerRef.current) clearTimeout(blurTimerRef.current);
     if (searchQuery.length >= 2 && suggestions.length > 0) {
       setShowSuggestions(true);
     }
-  };
-
-  const handleInputBlur = () => {
-    // Delay hiding suggestions to allow clicks
-    setTimeout(() => setShowSuggestions(false), 200);
-  };
+  }, [searchQuery, suggestions.length]);
 
   return (
     <div className="relative">
       <div className={`${cardBg} border ${border} rounded-2xl p-4`}>
         {/* Search Row */}
         <div className="flex flex-col sm:flex-row gap-3">
-          {/* Search Input */}
           <div className="relative flex-1">
-            <FiSearch
-              className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 ${subText}`}
-            />
+            <FiSearch className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 ${subText}`} />
             <input
               type="text"
-              placeholder="Search bill number, customer name, phone..."
+              placeholder="Search bill #, customer name, phone..."
               value={searchQuery}
               onChange={handleInputChange}
-              onFocus={handleInputFocus}
-              onBlur={handleInputBlur}
+              onFocus={handleFocus}
+              onBlur={handleBlur}
               className={`w-full pl-10 pr-10 py-2.5 rounded-xl border ${inputBg} ${text} text-sm 
                 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 
                 transition-all placeholder:text-gray-500`}
             />
             {searchQuery && (
               <button
-                onClick={() => {
-                  setSearchQuery("");
-                  setShowSuggestions(false);
-                }}
-                className={`absolute right-3 top-1/2 -translate-y-1/2 ${subText} 
-                  hover:text-red-500 transition-colors`}
+                onClick={handleClear}
+                className={`absolute right-3 top-1/2 -translate-y-1/2 ${subText} hover:text-red-500 transition-colors`}
               >
                 <FiXCircle className="w-4 h-4" />
               </button>
             )}
             {searching && (
-              <div className="absolute right-12 top-1/2 -translate-y-1/2">
+              <div className="absolute right-10 top-1/2 -translate-y-1/2">
                 <div className="w-4 h-4 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
               </div>
             )}
           </div>
 
-          {/* QR Scanner Button */}
           <button
             onClick={onQrScan}
             className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 
@@ -137,12 +116,10 @@ const BillSearchBar = ({
             <span className="sm:hidden">QR</span>
           </button>
 
-          {/* Reset Button */}
           <button
             onClick={onReset}
             className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border ${border} ${cardBg} 
-              ${subText} text-sm hover:border-amber-500 hover:text-amber-500 transition-all 
-              active:scale-95`}
+              ${subText} text-sm hover:border-amber-500 hover:text-amber-500 transition-all active:scale-95`}
           >
             <FiRefreshCw className="w-4 h-4" />
             <span className="hidden sm:inline">Reset</span>
@@ -167,7 +144,7 @@ const BillSearchBar = ({
               {tab.icon}
               {tab.label}
               <span
-                className={`px-1.5 py-0.5 rounded-md text-xs ${
+                className={`px-1.5 py-0.5 rounded-md text-xs font-bold ${
                   activeFilter === tab.key
                     ? "bg-white/20 text-white"
                     : isDark
@@ -184,22 +161,25 @@ const BillSearchBar = ({
         {/* Search Error */}
         {searchError && (
           <div className={`mt-3 pt-3 border-t ${border}`}>
-            <div className={`flex items-center gap-2 text-sm ${isDark ? "text-red-400" : "text-red-600"}`}>
+            <div
+              className={`flex items-center gap-2 text-sm ${
+                isDark ? "text-red-400" : "text-red-600"
+              }`}
+            >
               <FiAlertTriangle className="w-4 h-4 flex-shrink-0" />
               <span>{searchError}</span>
             </div>
           </div>
         )}
 
-        {/* Search Results Count */}
         {searchQuery && !searchError && (
           <div className={`mt-3 pt-3 border-t ${border}`}>
             <p className={`text-xs ${subText} flex items-center gap-2`}>
               <FiSearch className="w-3 h-3 text-amber-500" />
-              <span>Searching for:</span>
+              <span>Searching:</span>
               <span className="text-amber-500 font-medium">"{searchQuery}"</span>
               {suggestions.length > 0 && (
-                <span className="text-green-500">
+                <span className="text-green-500 font-bold">
                   ({suggestions.length} found)
                 </span>
               )}
@@ -208,35 +188,42 @@ const BillSearchBar = ({
         )}
       </div>
 
-      {/* Auto-Suggest Dropdown */}
+      {/* Suggestions Dropdown */}
       {showSuggestions && suggestions.length > 0 && (
-        <div className={`absolute top-full left-0 right-0 mt-2 ${cardBg} border ${border} rounded-2xl shadow-xl z-50 max-h-64 overflow-y-auto`}>
+        <div
+          className={`absolute top-full left-0 right-0 mt-2 ${cardBg} border ${border} 
+            rounded-2xl shadow-xl z-50 max-h-64 overflow-y-auto`}
+        >
           {suggestions.map((bill) => (
             <button
               key={bill.id}
               onClick={() => handleSuggestionClick(bill)}
-              className={`w-full text-left px-4 py-3 hover:bg-amber-500/10 border-b ${border} last:border-b-0 transition-colors`}
+              className={`w-full text-left px-4 py-3 hover:bg-amber-500/10 border-b ${border} 
+                last:border-b-0 transition-colors`}
             >
               <div className="flex items-center justify-between">
                 <div>
                   <div className={`font-semibold ${text} text-sm`}>
                     Bill #{bill.serialNo || bill.billSerial}
                   </div>
-                  <div className={`text-xs ${subText} mt-1`}>
-                    {bill.customer?.name || "Walking Customer"} • Rs. {bill.totalAmount?.toLocaleString() || 0}
+                  <div className={`text-xs ${subText} mt-0.5`}>
+                    {bill.customer?.name || "Walking Customer"} ·{" "}
+                    Rs. {bill.totalAmount?.toLocaleString() || 0}
                   </div>
                   <div className={`text-xs ${subText}`}>
-                    {bill.customer?.phone || "No phone"} • {new Date(bill.createdAt?.toDate?.() || bill.createdAt).toLocaleDateString()}
+                    {bill.customer?.phone || "No phone"}
                   </div>
                 </div>
-                <div className={`text-xs px-2 py-1 rounded-full ${
-                  bill.status === "paid"
-                    ? "bg-green-500/20 text-green-400"
-                    : bill.status === "pending"
-                    ? "bg-yellow-500/20 text-yellow-400"
-                    : "bg-red-500/20 text-red-400"
-                }`}>
-                  {bill.status}
+                <div
+                  className={`text-xs px-2 py-1 rounded-full font-bold ${
+                    bill.status === "paid"
+                      ? "bg-green-500/20 text-green-400"
+                      : bill.status === "pending"
+                      ? "bg-yellow-500/20 text-yellow-400"
+                      : "bg-red-500/20 text-red-400"
+                  }`}
+                >
+                  {bill.status?.toUpperCase()}
                 </div>
               </div>
             </button>
@@ -245,6 +232,7 @@ const BillSearchBar = ({
       )}
     </div>
   );
-};
+});
 
+BillSearchBar.displayName = "BillSearchBar";
 export default BillSearchBar;
