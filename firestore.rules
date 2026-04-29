@@ -1,0 +1,219 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Auth helpers ─────────────────────────────────────
+    function isLoggedIn() {
+      return request.auth != null;
+    }
+
+    function getUserData() {
+      return get(
+        /databases/$(database)/documents/users/$(request.auth.uid)
+      ).data;
+    }
+
+    function hasRole(roles) {
+      return isLoggedIn() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        getUserData().role in roles;
+    }
+
+    // ✅ Multi-role support — roles array field
+    function hasAnyRole(roles) {
+      return isLoggedIn() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        (
+          getUserData().role in roles ||
+          (
+            'roles' in getUserData() &&
+            getUserData().roles.hasAny(roles)
+          )
+        );
+    }
+
+    function isSuperAdmin() {
+      return hasAnyRole(['superadmin']);
+    }
+
+    function isAdminOrAbove() {
+      return hasAnyRole(['superadmin', 'admin']);
+    }
+
+    // ✅ Cashier included properly
+    function isCashierOrAbove() {
+      return hasAnyRole(['superadmin', 'admin', 'cashier']);
+    }
+
+    function isBillerOrAbove() {
+      return hasAnyRole(['superadmin', 'admin', 'biller', 'cashier']);
+    }
+
+    // ✅ Cashier can update only allowed fields on orders
+    function isCashierUpdate() {
+      return isCashierOrAbove() &&
+        // only these fields allowed to change
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly([
+            'status',
+            'paymentType',
+            'amountReceived',
+            'changeGiven',
+            'paidAt',
+            'paidBy',
+            'paidByName',
+            'billEndTime',
+            'cashierPaidAt',
+            'cashierName',
+            'cashierId',
+            'cashierHandover',
+            'updatedAt',
+          ]);
+    }
+
+    // ── System setup ──────────────────────────────────────
+    match /system/{docId} {
+      allow read: if true;
+      allow write: if !exists(
+        /databases/$(database)/documents/system/setup
+      );
+    }
+
+    // ── Settings ─────────────────────────────────────────
+    match /settings/{docId} {
+      allow read:  if isLoggedIn();
+      allow write: if isAdminOrAbove();
+    }
+
+    // ── Users ─────────────────────────────────────────────
+    match /users/{userId} {
+      allow create: if !exists(
+        /databases/$(database)/documents/system/setup
+      );
+      allow read, update: if isLoggedIn() &&
+        request.auth.uid == userId;
+      allow read, write: if isSuperAdmin();
+    }
+
+    // ── Stores ───────────────────────────────────────────
+    match /stores/{storeId} {
+      allow read:  if isLoggedIn();
+      allow write: if isAdminOrAbove();
+    }
+
+    // ── Orders ───────────────────────────────────────────
+    match /orders/{orderId} {
+      // Anyone logged in can read
+      allow read: if isLoggedIn();
+
+      // Biller/cashier can create
+      allow create: if isBillerOrAbove();
+
+      // ✅ FIXED: Cashier can update (mark paid, change status)
+      // Admin/above can update anything
+      allow update: if isAdminOrAbove() || isCashierUpdate();
+
+      // Only superadmin deletes
+      allow delete: if isSuperAdmin();
+    }
+
+    // ── Counters ──────────────────────────────────────────
+    match /counters/{counterId} {
+      allow read: if isLoggedIn();
+
+      // Serial counter — only increment by 1
+      allow update: if isBillerOrAbove() &&
+        counterId.matches('serial_.*') &&
+        request.resource.data.lastSerial is number &&
+        request.resource.data.lastSerial ==
+          resource.data.lastSerial + 1;
+
+      // Customer counter — only increment by 1
+      allow update: if isBillerOrAbove() &&
+        counterId.matches('customer_.*') &&
+        request.resource.data.lastNumber is number &&
+        request.resource.data.lastNumber ==
+          resource.data.lastNumber + 1;
+
+      // New counter creation
+      allow create: if isBillerOrAbove();
+
+      // SuperAdmin reset
+      allow write: if isSuperAdmin();
+    }
+
+    // ── Customers ─────────────────────────────────────────
+    match /customers/{customerId} {
+      allow read:  if isLoggedIn();
+      allow write: if isBillerOrAbove();
+    }
+
+    // ── Offline Orders ────────────────────────────────────
+    // ✅ NEW: Local offline queue — biller writes, syncs later
+    match /offlineOrders/{docId} {
+      allow read:          if isLoggedIn();
+      allow create:        if isBillerOrAbove();
+      // ✅ Allow update for sync status tracking
+      allow update:        if isBillerOrAbove() &&
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['synced', 'syncedAt', 'syncError', 'updatedAt']);
+      allow delete:        if isBillerOrAbove();
+    }
+
+    // ── Cleared Data ──────────────────────────────────────
+    match /clearedData/{docId} {
+      allow read:           if isAdminOrAbove();
+      allow create:         if isBillerOrAbove();
+      allow update, delete: if isAdminOrAbove();
+    }
+
+    // ── Deleted Bills ─────────────────────────────────────
+    match /deletedBills/{docId} {
+      allow read:           if isAdminOrAbove();
+      // ✅ Biller + cashier can create (offline sync support)
+      allow create:         if isBillerOrAbove();
+      allow update, delete: if isAdminOrAbove();
+    }
+
+    // ── Cleared Bills ─────────────────────────────────────
+    match /clearedBills/{docId} {
+      allow read:           if isAdminOrAbove();
+      allow create:         if isBillerOrAbove();
+      allow update, delete: if isAdminOrAbove();
+    }
+
+    // ── Audit Logs ────────────────────────────────────────
+    match /auditLogs/{docId} {
+      allow read:           if isAdminOrAbove();
+      allow create:         if isLoggedIn();
+      allow update, delete: if isSuperAdmin();
+    }
+
+    // ── Cashier Actions ───────────────────────────────────
+    match /cashierActions/{docId} {
+      allow read:           if isCashierOrAbove();
+      // ✅ Cashier can create their own actions
+      allow create:         if isCashierOrAbove();
+      allow update, delete: if isAdminOrAbove();
+    }
+
+    // ── Order Dedup — write once, immutable ───────────────
+    match /orderDedup/{docId} {
+      allow read:           if isLoggedIn();
+      allow create:         if isBillerOrAbove();
+      // ✅ Immutable — no update/delete ever
+      allow update, delete: if false;
+    }
+
+    // ── Activity / Notifications (optional) ───────────────
+    match /notifications/{docId} {
+      allow read:   if isLoggedIn() &&
+        resource.data.userId == request.auth.uid;
+      allow create: if isLoggedIn();
+      allow update: if isLoggedIn() &&
+        resource.data.userId == request.auth.uid;
+      allow delete: if isAdminOrAbove();
+    }
+
+  }
+}

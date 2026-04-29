@@ -1,211 +1,178 @@
 // src/components/cashier/EditBillModal.jsx
-import React, { useState, useCallback, useMemo, useEffect } from "react";
+// ✅ FIXED: "Item - ITEM-xxx" stripped from display
+// ✅ Items + Discount in ONE glass toggle, modern glassmorphism UI
+// ✅ Save → Print, ESC safe, no paid checkbox
+
+import React, {
+  useState, useCallback, useMemo, useEffect,
+} from "react";
 import {
   doc, updateDoc, addDoc, collection, serverTimestamp,
 } from "firebase/firestore";
 import { db } from "../../services/firebase";
 import {
-  FiX, FiSave, FiPlus, FiTrash2, FiCopy, FiEdit3,
-  FiUser, FiPhone, FiTag, FiDollarSign, FiCheckCircle,
-  FiAlertCircle, FiZap, FiArrowDown, FiArrowUp,
+  FiX, FiSave, FiEdit3, FiUser, FiPhone,
+  FiChevronDown, FiMapPin, FiPackage, FiHash,
 } from "react-icons/fi";
-import { MdPayment } from "react-icons/md";
 import { toast } from "react-hot-toast";
 
-const PAYMENT_METHODS = [
-  { value: "Cash", icon: "💵" },
-  { value: "EasyPaisa", icon: "📱" },
-  { value: "JazzCash", icon: "📲" },
-  { value: "Bank Transfer", icon: "🏦" },
-  { value: "Card", icon: "💳" },
-];
+let _c = 0;
+const uid = () => `i_${Date.now()}_${++_c}_${Math.random().toString(36).slice(2, 5)}`;
 
-const EditBillModal = ({ order, isDark, userData, storeData, onClose, onPayment }) => {
-  // Customer
-  const [customerName, setCustomerName] = useState(order.customer?.name || "Walking Customer");
-  const [customerPhone, setCustomerPhone] = useState(order.customer?.phone || "");
-  const [paymentMethod, setPaymentMethod] = useState(order.paymentType || "Cash");
-  const [comments, setComments] = useState(order.comments || "");
+// ✅ Strip "Item - " prefix from product names coming from Firebase
+const cleanName = (name) => {
+  if (!name) return "Product";
+  // Remove "Item - " prefix if exists
+  let clean = name.replace(/^Item\s*[-–—]\s*/i, "").trim();
+  // If the cleaned name looks like just an ID (ITEM-xxxxx), show shorter version
+  if (/^ITEM-\d+/i.test(clean)) {
+    const id = clean.replace(/^ITEM-/i, "");
+    return `Product #${id.slice(-6)}`;
+  }
+  return clean || "Product";
+};
 
-  // Items - EDITABLE
-  const [items, setItems] = useState(() =>
-    (order.items || []).map((item, i) => ({
-      ...item,
-      _id: `item_${i}_${Date.now()}`,
-      _originalQty: item.qty,
-      _originalTotal: item.total,
-      _originalPrice: item.price,
-      _isNew: false,
-      _isDuplicate: false,
-      _isDeleted: false,
-    }))
-  );
+const doPrint = (order, items, total, disc, name, phone, market, city) => {
+  const w = window.open("", "_blank", "width=380,height=600");
+  if (!w) { toast.error("Allow popups"); return; }
+  w.document.write(`<!DOCTYPE html><html><head><title>Bill #${order.billSerial || order.serialNo}</title>
+<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:'Courier New',monospace;font-size:12px;padding:16px;max-width:320px}.c{text-align:center}.d{border-top:1px dashed #000;margin:8px 0}.r{display:flex;justify-content:space-between;margin:3px 0}.t{font-size:14px;font-weight:bold}@media print{body{padding:0}}</style></head><body>
+<div class="c"><h2>${order.storeName || "POS"}</h2><p>#${order.billSerial || order.serialNo}</p><p>${new Date().toLocaleString("en-PK")}</p></div><div class="d"></div>
+<div class="r"><span>Customer:</span><span>${name}</span></div>
+${phone ? `<div class="r"><span>Phone:</span><span>${phone}</span></div>` : ""}
+${market ? `<div class="r"><span>Market:</span><span>${market}</span></div>` : ""}
+${city ? `<div class="r"><span>City:</span><span>${city}</span></div>` : ""}
+<div class="d"></div>
+${items.map(i => `<div class="r"><span>${i.productName}</span><span>Rs.${(i.qty * i.price).toLocaleString()}</span></div><div style="color:#666;font-size:10px;margin-left:8px">Qty:${i.qty} × Rs.${i.price}</div>`).join("")}
+<div class="d"></div>
+${disc > 0 ? `<div class="r"><span>Discount:</span><span>-Rs.${disc}</span></div>` : ""}
+<div class="r t"><span>TOTAL:</span><span>Rs.${total.toLocaleString()}</span></div>
+<div class="d"></div><div class="c" style="font-size:10px;margin-top:8px">Thank you!</div>
+<script>window.onload=()=>{window.print();window.onafterprint=()=>window.close()}</script></body></html>`);
+  w.document.close();
+};
 
-  // Discount
-  const [extraDiscount, setExtraDiscount] = useState(0);
-  const [discountReason, setDiscountReason] = useState("");
+const EditBillModal = ({ order, isDark, userData, storeData, onClose }) => {
+  const [cName, setCName] = useState(order.customer?.name || "Walking Customer");
+  const [cPhone, setCPhone] = useState(order.customer?.phone || "");
+  const [cMarket, setCMarket] = useState(order.customer?.market || "");
+  const [cCity, setCCity] = useState(order.customer?.city || "");
+  const [payM, setPayM] = useState(order.paymentType || "Cash");
+  const [notes, setNotes] = useState(order.comments || "");
+
+  const [showItemsDiscount, setShowItemsDiscount] = useState(false);
+  const [showSummary, setShowSummary] = useState(false);
+
+  const [extraDisc, setExtraDisc] = useState(0);
+  const [discReason, setDiscReason] = useState("");
   const [saving, setSaving] = useState(false);
 
-  const cardBg = isDark ? "bg-[#1a1208]" : "bg-white";
-  const border = isDark ? "border-[#2a1f0f]" : "border-gray-200";
-  const text = isDark ? "text-gray-100" : "text-gray-900";
-  const subText = isDark ? "text-gray-400" : "text-gray-500";
-  const inputBg = isDark
-    ? "bg-[#120d06] border-[#2a1f0f] text-gray-100"
-    : "bg-gray-50 border-gray-200 text-gray-900";
-  const rowBg = isDark ? "bg-[#0f0a04]" : "bg-gray-50";
-  const accent = "text-amber-500";
-
-  // ===== CALCULATIONS =====
-  const originalSubtotal = useMemo(
-    () => order.subtotal || order.items?.reduce((s, i) => s + (i.total || 0), 0) || 0,
-    [order]
-  );
-
-  const originalTotal = order.totalAmount || 0;
-  const originalDiscount = order.billDiscount || 0;
-
-  const activeItems = useMemo(
-    () => items.filter((i) => !i._isDeleted),
-    [items]
-  );
-
-  const newSubtotal = useMemo(
-    () => activeItems.reduce((s, i) => s + (Number(i.qty) * Number(i.price) || 0), 0),
-    [activeItems]
-  );
-
-  const totalDiscount = useMemo(
-    () => originalDiscount + Number(extraDiscount || 0),
-    [originalDiscount, extraDiscount]
-  );
-
-  const newTotal = useMemo(
-    () => Math.max(0, newSubtotal - totalDiscount),
-    [newSubtotal, totalDiscount]
-  );
-
-  const totalDifference = newTotal - originalTotal;
-
-  // ===== ITEM OPERATIONS =====
-  const updateItem = useCallback((id, field, value) => {
-    setItems((prev) =>
-      prev.map((item) => {
-        if (item._id !== id) return item;
-        const updated = { ...item, [field]: value };
-        if (field === "qty" || field === "price") {
-          updated.total = Number(updated.qty || 0) * Number(updated.price || 0);
-        }
-        return updated;
-      })
-    );
-  }, []);
-
-  const deleteItem = useCallback((id) => {
-    setItems((prev) =>
-      prev.map((item) =>
-        item._id === id ? { ...item, _isDeleted: true } : item
-      )
-    );
-    toast.success("Item removed", { duration: 1000 });
-  }, []);
-
-  const restoreItem = useCallback((id) => {
-    setItems((prev) =>
-      prev.map((item) =>
-        item._id === id ? { ...item, _isDeleted: false } : item
-      )
-    );
-  }, []);
-
-  const duplicateItem = useCallback((id) => {
-    setItems((prev) => {
-      const original = prev.find((i) => i._id === id);
-      if (!original) return prev;
-      const dup = {
-        ...original,
-        _id: `dup_${Date.now()}_${Math.random()}`,
-        _isDuplicate: true,
-        _isNew: true,
-        _isDeleted: false,
-        qty: original.qty,
+  const [items, setItems] = useState(() => {
+    const seen = new Set();
+    return (order.items || []).map(item => {
+      let id = uid();
+      while (seen.has(id)) id = uid();
+      seen.add(id);
+      return {
+        ...item,
+        _id: id,
+        qty: Number(item.qty) || 1,
+        price: Number(item.price) || 0,
       };
-      const idx = prev.findIndex((i) => i._id === id);
-      const newArr = [...prev];
-      newArr.splice(idx + 1, 0, dup);
-      return newArr;
     });
-    toast.success("Item duplicated!", { icon: "📋", duration: 1000 });
-  }, []);
+  });
 
-  const addNewItem = useCallback(() => {
-    setItems((prev) => [
-      ...prev,
-      {
-        _id: `new_${Date.now()}`,
-        productName: "New Item",
-        serialId: "",
-        price: 0,
-        qty: 1,
-        total: 0,
-        _isNew: true,
-        _isDuplicate: false,
-        _isDeleted: false,
-        _originalQty: 0,
-        _originalTotal: 0,
-        _originalPrice: 0,
-      },
-    ]);
-  }, []);
+  // ── Glass theme ──
+  const modalBg = isDark
+    ? "bg-[#110d08]/95 backdrop-blur-2xl"
+    : "bg-white/95 backdrop-blur-2xl";
+  const border = isDark ? "border-white/10" : "border-gray-200/60";
+  const text = isDark ? "text-gray-100" : "text-gray-900";
+  const subText = isDark ? "text-gray-500" : "text-gray-400";
+  const inputBg = isDark
+    ? "bg-white/5 border-white/10 text-gray-100 placeholder:text-gray-600"
+    : "bg-black/5 border-gray-200/60 text-gray-900 placeholder:text-gray-400";
+  const glassBg = isDark
+    ? "bg-white/[0.03] border-white/[0.06]"
+    : "bg-black/[0.02] border-gray-200/40";
+  const glassCard = isDark
+    ? "bg-white/[0.05] border-white/[0.08] hover:bg-white/[0.08]"
+    : "bg-white/70 border-gray-200/50 hover:bg-white/90";
+  const glassActive = isDark
+    ? "bg-amber-500/10 border-amber-500/20 ring-1 ring-amber-500/20"
+    : "bg-amber-50/80 border-amber-200/60 ring-1 ring-amber-500/20";
 
-  // ===== SAVE =====
+  useEffect(() => {
+    const h = (e) => {
+      if (e.key === "Escape") { e.preventDefault(); onClose(); }
+    };
+    window.addEventListener("keydown", h, true);
+    return () => window.removeEventListener("keydown", h, true);
+  }, [onClose]);
+
+  const origTotal = order.totalAmount || 0;
+  const origDisc = order.billDiscount || 0;
+  const origSub = useMemo(
+    () => order.subtotal || (order.items || []).reduce((s, i) => s + (i.total || 0), 0),
+    [order],
+  );
+  const newSub = useMemo(() => items.reduce((s, i) => s + i.qty * i.price, 0), [items]);
+  const totalDisc = useMemo(() => origDisc + Number(extraDisc || 0), [origDisc, extraDisc]);
+  const newTotal = useMemo(() => Math.max(0, newSub - totalDisc), [newSub, totalDisc]);
+  const diff = newTotal - origTotal;
+
+  const setQty = useCallback((id, v) =>
+    setItems(p => p.map(i => i._id === id
+      ? { ...i, qty: Math.max(1, Math.floor(Number(v) || 1)) } : i
+    )), []);
+
+  const setPrice = useCallback((id, v) =>
+    setItems(p => p.map(i => i._id === id
+      ? { ...i, price: Math.max(0, Number(v) || 0) } : i
+    )), []);
+
   const handleSave = useCallback(async () => {
-    if (activeItems.length === 0) {
-      toast.error("Bill must have at least 1 item!");
+    if (items.length === 0) { toast.error("Need items"); return; }
+    if (Number(extraDisc) > 0 && !discReason.trim()) {
+      toast.error("Discount reason required");
       return;
     }
-    if (Number(extraDiscount) > 0 && !discountReason.trim()) {
-      toast.error("Discount reason required!");
-      return;
-    }
-
     setSaving(true);
-    const finalItems = activeItems.map((i) => ({
+    const tid = toast.loading("Saving...");
+    const cn = userData?.displayName || userData?.name || "Cashier";
+    const fi = items.map(i => ({
       productName: i.productName,
       serialId: i.serialId || "",
-      price: Number(i.price) || 0,
-      qty: Number(i.qty) || 0,
-      total: Number(i.qty) * Number(i.price) || 0,
+      price: Number(i.price),
+      qty: Number(i.qty),
+      total: i.qty * i.price,
     }));
-
     try {
       await Promise.all([
         updateDoc(doc(db, "orders", order.id), {
-          items: finalItems,
-          "customer.name": customerName,
-          "customer.phone": customerPhone,
-          paymentType: paymentMethod,
-          comments: comments,
-          subtotal: newSubtotal,
-          billDiscount: totalDiscount,
-          discountReason: extraDiscount > 0
-            ? discountReason
-            : order.discountReason || "",
+          items: fi,
+          "customer.name": cName,
+          "customer.phone": cPhone,
+          "customer.market": cMarket,
+          "customer.city": cCity,
+          paymentType: payM,
+          comments: notes,
+          subtotal: newSub,
+          billDiscount: totalDisc,
+          discountReason: extraDisc > 0 ? discReason : (order.discountReason || ""),
           totalAmount: newTotal,
-          totalQty: finalItems.reduce((s, i) => s + i.qty, 0),
-          lastEditedBy: userData?.displayName || userData?.name || "Cashier",
+          totalQty: fi.reduce((s, i) => s + i.qty, 0),
+          lastEditedBy: cn,
           lastEditedAt: serverTimestamp(),
           lastEditedUserId: userData?.uid || "",
           editHistory: [
             ...(order.editHistory || []),
             {
-              editedBy: userData?.displayName || userData?.name || "Cashier",
+              editedBy: cn,
               editedAt: new Date().toISOString(),
-              previousTotal: originalTotal,
-              newTotal: newTotal,
-              previousItems: order.items?.length || 0,
-              newItems: finalItems.length,
-              reason: comments || discountReason || "Edited",
+              previousTotal: origTotal,
+              newTotal,
+              reason: notes || discReason || "Edited",
             },
           ],
         }),
@@ -214,579 +181,504 @@ const EditBillModal = ({ order, isDark, userData, storeData, onClose, onPayment 
           orderId: order.id,
           billSerial: order.billSerial || order.serialNo,
           userId: userData?.uid || "",
-          userName: userData?.displayName || userData?.name || "Cashier",
-          role: userData?.role || "cashier",
+          userName: cn,
           storeId: userData?.storeId || "",
-          before: {
-            totalAmount: originalTotal,
-            subtotal: originalSubtotal,
-            itemCount: order.items?.length || 0,
-            discount: originalDiscount,
-          },
-          after: {
-            totalAmount: newTotal,
-            subtotal: newSubtotal,
-            itemCount: finalItems.length,
-            discount: totalDiscount,
-          },
-          difference: totalDifference,
+          before: { totalAmount: origTotal, subtotal: origSub, discount: origDisc },
+          after: { totalAmount: newTotal, subtotal: newSub, discount: totalDisc },
+          difference: diff,
           timestamp: serverTimestamp(),
         }),
       ]);
-
-      toast.success("Bill updated successfully!");
+      toast.success("Saved! Printing...", { id: tid, duration: 1500 });
+      doPrint(order, fi, newTotal, totalDisc, cName, cPhone, cMarket, cCity);
       onClose();
     } catch (err) {
       console.error(err);
-      toast.error("Failed to save!");
+      toast.error("Save failed", { id: tid });
     } finally {
       setSaving(false);
     }
   }, [
-    activeItems, extraDiscount, discountReason, customerName, customerPhone,
-    paymentMethod, comments, newSubtotal, totalDiscount, newTotal, order,
-    userData, originalTotal, originalSubtotal, originalDiscount, totalDifference,
-    onClose,
+    items, extraDisc, discReason, cName, cPhone, cMarket, cCity,
+    payM, notes, newSub, totalDisc, newTotal, order, userData,
+    origTotal, origSub, origDisc, diff, onClose,
   ]);
 
-  // ===== SAVE + PAY =====
-  const handleSaveAndPay = useCallback(async () => {
-    if (activeItems.length === 0) {
-      toast.error("Bill must have at least 1 item!");
-      return;
-    }
+  const PAY = [
+    { v: "Cash", i: "💵" },
+    { v: "EasyPaisa", i: "📱" },
+    { v: "JazzCash", i: "📲" },
+    { v: "Bank Transfer", i: "🏦" },
+    { v: "Card", i: "💳" },
+  ];
 
-    setSaving(true);
-    const finalItems = activeItems.map((i) => ({
-      productName: i.productName,
-      serialId: i.serialId || "",
-      price: Number(i.price) || 0,
-      qty: Number(i.qty) || 0,
-      total: Number(i.qty) * Number(i.price) || 0,
-    }));
-
-    try {
-      await updateDoc(doc(db, "orders", order.id), {
-        items: finalItems,
-        "customer.name": customerName,
-        "customer.phone": customerPhone,
-        paymentType: paymentMethod,
-        comments,
-        subtotal: newSubtotal,
-        billDiscount: totalDiscount,
-        totalAmount: newTotal,
-        totalQty: finalItems.reduce((s, i) => s + i.qty, 0),
-        status: "paid",
-        paidAt: serverTimestamp(),
-        paidBy: userData?.uid || "",
-        paidByName: userData?.displayName || userData?.name || "Cashier",
-        billEndTime: new Date().toISOString(),
-        amountReceived: newTotal,
-        changeGiven: 0,
-        lastEditedBy: userData?.displayName || userData?.name || "Cashier",
-        lastEditedAt: serverTimestamp(),
-      });
-
-      toast.success(`⚡ Paid! Rs.${newTotal.toLocaleString()}`);
-      onClose();
-    } catch (err) {
-      console.error(err);
-      toast.error("Failed!");
-    } finally {
-      setSaving(false);
-    }
-  }, [
-    activeItems, customerName, customerPhone, paymentMethod, comments,
-    newSubtotal, totalDiscount, newTotal, order, userData, onClose,
-  ]);
+  // ✅ Glassmorphism Toggle
+  const GlassToggle = ({ open, toggle, icon, label, badge }) => (
+    <button
+      onClick={toggle}
+      className={`w-full flex items-center justify-between px-4 py-4 rounded-2xl border
+        transition-all duration-300 backdrop-blur-xl
+        ${open ? glassActive : glassCard}`}
+    >
+      <span className="flex items-center gap-3">
+        <span className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all
+          duration-300 ${
+          open
+            ? "bg-gradient-to-br from-amber-500 to-orange-500 text-white shadow-lg shadow-amber-500/30 scale-110"
+            : isDark
+            ? "bg-white/10 text-amber-400"
+            : "bg-amber-100/80 text-amber-600"
+        }`}>
+          {icon}
+        </span>
+        <span className={`text-sm font-bold ${text}`}>{label}</span>
+        {badge && (
+          <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wide
+            ${isDark
+              ? "bg-amber-500/15 text-amber-400 border border-amber-500/20"
+              : "bg-amber-100 text-amber-700 border border-amber-200/60"
+            }`}>
+            {badge}
+          </span>
+        )}
+      </span>
+      <div className={`w-7 h-7 rounded-full flex items-center justify-center
+        transition-all duration-300 ${open ? "rotate-180 bg-amber-500/20" : ""}
+        ${isDark ? "bg-white/10" : "bg-black/5"}`}>
+        <FiChevronDown className={`w-4 h-4 transition-colors ${
+          open ? "text-amber-500" : subText
+        }`} />
+      </div>
+    </button>
+  );
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4">
+      {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+        className="absolute inset-0 bg-black/60 backdrop-blur-md"
         onClick={onClose}
       />
 
+      {/* Modal */}
       <div
-        className={`relative w-full max-w-2xl ${cardBg} rounded-2xl border ${border} shadow-2xl flex flex-col`}
-        style={{ maxHeight: "92vh" }}
+        className={`relative w-full max-w-lg ${modalBg} rounded-3xl border ${border}
+          shadow-2xl flex flex-col overflow-hidden`}
+        style={{ maxHeight: "95vh" }}
+        onClick={e => e.stopPropagation()}
       >
-        {/* Header */}
-        <div
-          className={`flex items-center justify-between px-5 py-4 border-b ${border} flex-shrink-0`}
-        >
+        {/* ── Header ── */}
+        <div className={`flex items-center justify-between px-5 py-4
+          border-b ${border} flex-shrink-0`}>
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 bg-amber-500/20 rounded-xl flex items-center justify-center">
-              <FiEdit3 className="text-amber-500 w-5 h-5" />
+            <div className="w-10 h-10 bg-gradient-to-br from-amber-500 to-orange-600
+              rounded-2xl flex items-center justify-center
+              shadow-lg shadow-amber-500/25">
+              <FiEdit3 className="text-white w-5 h-5" />
             </div>
             <div>
               <h2 className={`font-bold text-base ${text}`}>
-                Edit Bill #{order.billSerial || order.serialNo}
+                Edit #{order.billSerial || order.serialNo}
               </h2>
               <p className={`text-xs ${subText}`}>
-                Modify items, customer info, discount
+                {items.length} item{items.length !== 1 ? "s" : ""} · ESC to close
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className={`p-2 rounded-lg ${subText} hover:text-red-500 hover:bg-red-500/10 transition-colors`}
+            className={`w-9 h-9 rounded-xl flex items-center justify-center
+              transition-all ${isDark ? "hover:bg-red-500/20" : "hover:bg-red-50"}
+              ${subText} hover:text-red-500`}
           >
             <FiX className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Scrollable Content */}
-        <div className="flex-1 overflow-y-auto p-5 space-y-4">
-          {/* Customer Info */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className={`text-xs font-bold ${subText} mb-1 block`}>
-                <FiUser className="inline w-3 h-3 mr-1 text-amber-500" />
+        {/* ── Body ── */}
+        <div className="flex-1 overflow-y-auto p-4 space-y-3">
+
+          {/* ═══ Customer ═══ */}
+          <div className={`rounded-2xl p-4 border ${glassBg} backdrop-blur-sm`}>
+            <div className="flex items-center gap-2 mb-3">
+              <div className={`w-6 h-6 rounded-lg flex items-center justify-center
+                ${isDark ? "bg-amber-500/15" : "bg-amber-100/80"}`}>
+                <FiUser className="w-3.5 h-3.5 text-amber-500" />
+              </div>
+              <span className={`text-[10px] font-bold uppercase tracking-widest ${subText}`}>
                 Customer
-              </label>
-              <input
-                type="text"
-                value={customerName}
-                onChange={(e) => setCustomerName(e.target.value)}
-                className={`w-full px-3 py-2 rounded-lg border text-sm ${inputBg} focus:outline-none focus:border-amber-500`}
-              />
+              </span>
             </div>
-            <div>
-              <label className={`text-xs font-bold ${subText} mb-1 block`}>
-                <FiPhone className="inline w-3 h-3 mr-1 text-amber-500" />
-                Phone
-              </label>
-              <input
-                type="tel"
-                value={customerPhone}
-                onChange={(e) => setCustomerPhone(e.target.value)}
-                placeholder="03XX-XXXXXXX"
-                className={`w-full px-3 py-2 rounded-lg border text-sm ${inputBg} focus:outline-none focus:border-amber-500`}
-              />
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                { l: "Name", v: cName, s: setCName, t: "text", p: "Name" },
+                {
+                  l: "Phone", v: cPhone, s: setCPhone, t: "tel", p: "03XX",
+                  ic: <FiPhone className="inline w-3 h-3 mr-0.5 opacity-50" />,
+                },
+                {
+                  l: "Market", v: cMarket, s: setCMarket, t: "text", p: "Market",
+                  ic: <FiMapPin className="inline w-3 h-3 mr-0.5 opacity-50" />,
+                },
+                { l: "City", v: cCity, s: setCCity, t: "text", p: "City" },
+              ].map(({ l, v, s, t, p, ic }) => (
+                <div key={l}>
+                  <label className={`text-[10px] font-bold uppercase tracking-wider
+                    block mb-1 ${subText}`}>
+                    {ic}{l}
+                  </label>
+                  <input
+                    type={t}
+                    value={v}
+                    onChange={e => s(e.target.value)}
+                    placeholder={p}
+                    className={`w-full px-3 py-2 rounded-xl border text-sm
+                      transition-all focus:outline-none focus:border-amber-500
+                      focus:ring-2 focus:ring-amber-500/20 ${inputBg}`}
+                  />
+                </div>
+              ))}
             </div>
           </div>
 
-          {/* Payment Method */}
-          <div>
-            <label className={`text-xs font-bold ${subText} mb-1.5 block`}>
+          {/* ═══ Payment ═══ */}
+          <div className={`rounded-2xl p-4 border ${glassBg} backdrop-blur-sm`}>
+            <label className={`text-[10px] font-bold uppercase tracking-widest
+              block mb-2.5 ${subText}`}>
               Payment Method
             </label>
-            <div className="flex gap-2 flex-wrap">
-              {PAYMENT_METHODS.map((m) => (
+            <div className="flex gap-1.5 flex-wrap">
+              {PAY.map(m => (
                 <button
-                  key={m.value}
-                  onClick={() => setPaymentMethod(m.value)}
-                  className={`flex items-center gap-1 px-3 py-1.5 rounded-lg border text-xs font-medium transition-all active:scale-95 ${
-                    paymentMethod === m.value
-                      ? "border-amber-500 bg-amber-500/20 text-amber-500"
-                      : `${border} ${subText} hover:border-amber-400`
+                  key={m.v}
+                  onClick={() => setPayM(m.v)}
+                  className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border text-xs
+                    font-semibold transition-all duration-200 active:scale-95 ${
+                    payM === m.v
+                      ? `border-amber-500/40 bg-amber-500/15 text-amber-500
+                         shadow-sm shadow-amber-500/10 ${isDark ? "ring-1 ring-amber-500/20" : ""}`
+                      : `${isDark ? "border-white/10 text-gray-400 hover:border-white/20 hover:bg-white/5"
+                                  : "border-gray-200/60 text-gray-500 hover:border-gray-300 hover:bg-gray-50"}`
                   }`}
                 >
-                  {m.icon} {m.value}
+                  <span className="text-sm">{m.i}</span>{m.v}
                 </button>
               ))}
             </div>
           </div>
 
-          {/* Items Table */}
-          <div className={`rounded-xl border ${border} overflow-hidden`}>
-            <div
-              className={`px-4 py-2.5 ${rowBg} border-b ${border} flex items-center justify-between`}
-            >
-              <h3
-                className={`text-xs font-bold ${subText} uppercase tracking-wider`}
-              >
-                Items ({activeItems.length})
-              </h3>
-              <button
-                onClick={addNewItem}
-                className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-500 text-white text-xs font-bold active:scale-95"
-              >
-                <FiPlus className="w-3 h-3" />
-                Add Item
-              </button>
-            </div>
+          {/* ═══ ITEMS + DISCOUNT (Combined Glass Toggle) ═══ */}
+          <div className="space-y-2">
+            <GlassToggle
+              open={showItemsDiscount}
+              toggle={() => setShowItemsDiscount(v => !v)}
+              icon={<FiPackage className="w-4 h-4" />}
+              label="Items & Discount"
+              badge={`${items.length}${totalDisc > 0 ? ` · -${totalDisc}` : ""}`}
+            />
 
-            <div className="divide-y divide-gray-100 dark:divide-gray-800">
-              {items.map((item) => (
-                <div
-                  key={item._id}
-                  className={`px-4 py-3 transition-all ${
-                    item._isDeleted
-                      ? "opacity-30 bg-red-500/5 line-through"
-                      : item._isDuplicate
-                      ? isDark
-                        ? "bg-blue-900/10"
-                        : "bg-blue-50/50"
-                      : item._isNew
-                      ? isDark
-                        ? "bg-green-900/10"
-                        : "bg-green-50/50"
-                      : ""
-                  }`}
-                >
-                  <div className="flex items-center gap-2 mb-2">
-                    {/* Labels */}
-                    {item._isDuplicate && (
-                      <span className="text-[9px] px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-500 font-bold">
-                        DUPLICATE
-                      </span>
-                    )}
-                    {item._isNew && !item._isDuplicate && (
-                      <span className="text-[9px] px-1.5 py-0.5 rounded bg-green-500/20 text-green-500 font-bold">
-                        NEW
-                      </span>
-                    )}
-                    {item._isDeleted && (
-                      <span className="text-[9px] px-1.5 py-0.5 rounded bg-red-500/20 text-red-500 font-bold">
-                        REMOVED
-                      </span>
-                    )}
-                  </div>
+            {showItemsDiscount && (
+              <div className={`rounded-2xl border p-4 space-y-4
+                ${glassBg} backdrop-blur-sm animate-in fade-in duration-200`}>
 
-                  <div className="grid grid-cols-12 gap-2 items-center">
-                    {/* Name (col-span-4) */}
-                    <div className="col-span-4">
-                      <input
-                        type="text"
-                        value={item.productName}
-                        onChange={(e) =>
-                          updateItem(item._id, "productName", e.target.value)
-                        }
-                        disabled={item._isDeleted}
-                        className={`w-full px-2 py-1.5 rounded border text-xs ${inputBg} focus:outline-none focus:border-amber-500 disabled:opacity-40`}
-                      />
-                    </div>
+                {/* ── Items ── */}
+                <div className="space-y-2">
+                  <p className={`text-[10px] font-bold uppercase tracking-widest ${subText}
+                    flex items-center gap-1.5`}>
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                    Edit Qty & Price
+                  </p>
 
-                    {/* Serial (col-span-2) */}
-                    <div className="col-span-2">
-                      <input
-                        type="text"
-                        value={item.serialId || ""}
-                        onChange={(e) =>
-                          updateItem(item._id, "serialId", e.target.value)
-                        }
-                        disabled={item._isDeleted}
-                        placeholder="ID"
-                        className={`w-full px-2 py-1.5 rounded border text-xs ${inputBg} focus:outline-none focus:border-amber-500 disabled:opacity-40`}
-                      />
-                    </div>
-
-                    {/* Price (col-span-2) */}
-                    <div className="col-span-2">
-                      <input
-                        type="number"
-                        value={item.price}
-                        onChange={(e) =>
-                          updateItem(item._id, "price", e.target.value)
-                        }
-                        disabled={item._isDeleted}
-                        min={0}
-                        className={`w-full px-2 py-1.5 rounded border text-xs ${inputBg} focus:outline-none focus:border-amber-500 disabled:opacity-40`}
-                      />
-                    </div>
-
-                    {/* Qty (col-span-1) */}
-                    <div className="col-span-1">
-                      <input
-                        type="number"
-                        value={item.qty}
-                        onChange={(e) =>
-                          updateItem(item._id, "qty", e.target.value)
-                        }
-                        disabled={item._isDeleted}
-                        min={1}
-                        className={`w-full px-2 py-1.5 rounded border text-xs text-center ${inputBg} focus:outline-none focus:border-amber-500 disabled:opacity-40`}
-                      />
-                    </div>
-
-                    {/* Total (col-span-1) */}
-                    <div className="col-span-1 text-right">
-                      <span
-                        className={`text-xs font-bold ${accent}`}
-                      >
-                        {(
-                          Number(item.qty) * Number(item.price) || 0
-                        ).toLocaleString()}
-                      </span>
-                    </div>
-
-                    {/* Actions (col-span-2) */}
-                    <div className="col-span-2 flex items-center gap-1 justify-end">
-                      {item._isDeleted ? (
-                        <button
-                          onClick={() => restoreItem(item._id)}
-                          className="p-1 rounded text-green-500 hover:bg-green-500/10 text-xs"
-                          title="Restore"
-                        >
-                          ↩️
-                        </button>
-                      ) : (
-                        <>
-                          <button
-                            onClick={() => duplicateItem(item._id)}
-                            className="p-1 rounded text-blue-500 hover:bg-blue-500/10"
-                            title="Duplicate"
-                          >
-                            <FiCopy className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            onClick={() => deleteItem(item._id)}
-                            className="p-1 rounded text-red-500 hover:bg-red-500/10"
-                            title="Remove"
-                          >
-                            <FiTrash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Original vs New comparison */}
-                  {!item._isNew && !item._isDeleted && (
-                    <div className="mt-1.5 flex items-center gap-3">
-                      {item._originalQty !== Number(item.qty) && (
-                        <span className={`text-[10px] ${subText}`}>
-                          Qty: {item._originalQty} →{" "}
-                          <span className={accent}>{item.qty}</span>
-                        </span>
-                      )}
-                      {item._originalPrice !== Number(item.price) && (
-                        <span className={`text-[10px] ${subText}`}>
-                          Price: {item._originalPrice} →{" "}
-                          <span className={accent}>{item.price}</span>
-                        </span>
-                      )}
-                      {item._originalTotal !==
-                        Number(item.qty) * Number(item.price) && (
-                        <span className={`text-[10px] ${subText}`}>
-                          Total: Rs.{item._originalTotal} →{" "}
-                          <span className={`font-bold ${accent}`}>
-                            Rs.
-                            {(
-                              Number(item.qty) * Number(item.price)
-                            ).toLocaleString()}
+                  {items.map((item, idx) => (
+                    <div
+                      key={item._id}
+                      className={`rounded-xl border p-3.5 transition-all duration-200 ${
+                        isDark
+                          ? "bg-white/[0.03] border-white/[0.06] hover:bg-white/[0.06]"
+                          : "bg-white/50 border-gray-200/40 hover:bg-white/80"
+                      }`}
+                    >
+                      {/* ✅ Row header — CLEANED name, NO "Item - ITEM-xxx" */}
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                          <span className={`w-6 h-6 rounded-lg flex items-center justify-center
+                            text-[10px] font-extrabold flex-shrink-0
+                            ${isDark ? "bg-amber-500/15 text-amber-400" : "bg-amber-100 text-amber-600"}`}>
+                            {idx + 1}
                           </span>
+                          <span className={`text-sm font-semibold ${text} truncate`}>
+                            {cleanName(item.productName)}
+                          </span>
+                        </div>
+                        <span className={`text-sm font-bold text-amber-500 ml-2 tabular-nums`}>
+                          Rs.{(item.qty * item.price).toLocaleString()}
                         </span>
+                      </div>
+
+                      {/* Serial ID — small, subtle */}
+                      {item.serialId && (
+                        <div className={`flex items-center gap-1 mb-2.5 ${subText}`}>
+                          <FiHash className="w-3 h-3 opacity-50" />
+                          <span className="text-[10px] font-mono tracking-wider opacity-70">
+                            {item.serialId}
+                          </span>
+                        </div>
                       )}
+
+                      {/* Qty + Price inputs */}
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className={`text-[9px] font-bold uppercase tracking-widest
+                            block mb-1 ${subText}`}>
+                            Qty
+                          </label>
+                          <input
+                            type="number"
+                            value={item.qty}
+                            onChange={e => setQty(item._id, e.target.value)}
+                            min={1}
+                            max={999999}
+                            className={`w-full px-3 py-2.5 rounded-xl border text-base font-bold
+                              text-center transition-all focus:outline-none
+                              focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20
+                              ${inputBg}`}
+                          />
+                        </div>
+                        <div>
+                          <label className={`text-[9px] font-bold uppercase tracking-widest
+                            block mb-1 ${subText}`}>
+                            Price (Rs.)
+                          </label>
+                          <input
+                            type="number"
+                            value={item.price}
+                            onChange={e => setPrice(item._id, e.target.value)}
+                            min={0}
+                            className={`w-full px-3 py-2.5 rounded-xl border text-sm font-semibold
+                              transition-all focus:outline-none focus:border-amber-500
+                              focus:ring-2 focus:ring-amber-500/20 ${inputBg}`}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* ── Divider ── */}
+                <div className="flex items-center gap-3">
+                  <div className={`flex-1 h-px ${isDark ? "bg-white/10" : "bg-gray-200/50"}`} />
+                  <span className={`text-[9px] font-bold uppercase tracking-widest ${subText}`}>
+                    Discount
+                  </span>
+                  <div className={`flex-1 h-px ${isDark ? "bg-white/10" : "bg-gray-200/50"}`} />
+                </div>
+
+                {/* ── Discount ── */}
+                <div className="space-y-2.5">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[9px] font-bold uppercase tracking-widest
+                        block mb-1 text-blue-400">
+                        Biller Discount
+                      </label>
+                      <div className={`px-3 py-2.5 rounded-xl border text-sm font-bold
+                        text-blue-400 ${
+                        isDark
+                          ? "bg-blue-500/10 border-blue-500/15"
+                          : "bg-blue-50/80 border-blue-100"
+                      }`}>
+                        Rs.{origDisc.toLocaleString()}
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-[9px] font-bold uppercase tracking-widest
+                        block mb-1 text-emerald-400">
+                        Extra Discount
+                      </label>
+                      <input
+                        type="number"
+                        value={extraDisc}
+                        onChange={e => setExtraDisc(
+                          Math.min(Math.max(0, Number(e.target.value)), newSub)
+                        )}
+                        min={0}
+                        max={newSub}
+                        className={`w-full px-3 py-2.5 rounded-xl border text-sm font-bold
+                          transition-all focus:outline-none focus:border-emerald-500
+                          focus:ring-2 focus:ring-emerald-500/20 ${inputBg}`}
+                      />
+                    </div>
+                  </div>
+
+                  {Number(extraDisc) > 0 && (
+                    <div>
+                      <label className="text-[9px] font-bold uppercase tracking-widest
+                        block mb-1 text-red-400">
+                        Reason <span className="text-red-500">*required</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={discReason}
+                        onChange={e => setDiscReason(e.target.value)}
+                        placeholder="Why extra discount?"
+                        className={`w-full px-3 py-2.5 rounded-xl border text-sm
+                          transition-all focus:outline-none focus:border-red-500
+                          focus:ring-2 focus:ring-red-500/20 ${inputBg}`}
+                      />
                     </div>
                   )}
                 </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Discount Section */}
-          <div className={`rounded-xl p-4 border ${border} ${rowBg}`}>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs font-bold text-blue-500 mb-1 block">
-                  Biller Discount
-                </label>
-                <div
-                  className={`px-3 py-2 rounded-lg border ${border} text-sm font-bold text-blue-500 ${
-                    isDark ? "bg-blue-900/10" : "bg-blue-50"
-                  }`}
-                >
-                  Rs. {originalDiscount}
-                </div>
-              </div>
-              <div>
-                <label className="text-xs font-bold text-green-500 mb-1 block">
-                  Extra Discount
-                </label>
-                <input
-                  type="number"
-                  value={extraDiscount}
-                  onChange={(e) =>
-                    setExtraDiscount(
-                      Math.min(Number(e.target.value), newSubtotal)
-                    )
-                  }
-                  min={0}
-                  max={newSubtotal}
-                  className={`w-full px-3 py-2 rounded-lg border text-sm font-bold ${inputBg} focus:outline-none focus:border-green-500`}
-                />
-              </div>
-            </div>
-            {Number(extraDiscount) > 0 && (
-              <div className="mt-2">
-                <label className="text-xs font-bold text-red-500 mb-1 block">
-                  Reason <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={discountReason}
-                  onChange={(e) => setDiscountReason(e.target.value)}
-                  placeholder="Why discount?"
-                  className={`w-full px-3 py-2 rounded-lg border text-sm ${inputBg} focus:outline-none focus:border-red-500`}
-                />
               </div>
             )}
           </div>
 
-          {/* Comment */}
-          <div>
-            <label className={`text-xs font-bold ${subText} mb-1 block`}>
-              Comments
+          {/* ═══ Notes ═══ */}
+          <div className={`rounded-2xl p-4 border ${glassBg} backdrop-blur-sm`}>
+            <label className={`text-[10px] font-bold uppercase tracking-widest
+              block mb-1.5 ${subText}`}>
+              Notes
             </label>
             <input
               type="text"
-              value={comments}
-              onChange={(e) => setComments(e.target.value)}
-              placeholder="Notes..."
-              className={`w-full px-3 py-2 rounded-lg border text-sm ${inputBg} focus:outline-none focus:border-amber-500`}
+              value={notes}
+              onChange={e => setNotes(e.target.value)}
+              placeholder="Optional notes..."
+              className={`w-full px-3 py-2 rounded-xl border text-sm
+                transition-all focus:outline-none focus:border-amber-500
+                focus:ring-2 focus:ring-amber-500/20 ${inputBg}`}
             />
           </div>
 
-          {/* ===== BEFORE / AFTER COMPARISON ===== */}
-          <div
-            className={`rounded-xl p-4 border-2 ${
-              totalDifference === 0
-                ? border
-                : totalDifference > 0
-                ? "border-green-500"
-                : "border-red-500"
-            } ${isDark ? "bg-[#0f0a04]" : "bg-white"}`}
-          >
-            <h3
-              className={`text-xs font-bold ${accent} uppercase mb-3 tracking-wider`}
-            >
-              Summary Comparison
-            </h3>
-            <div className="grid grid-cols-2 gap-4">
-              {/* Before */}
-              <div className={`rounded-lg p-3 ${rowBg}`}>
-                <p className={`text-xs font-bold ${subText} mb-2`}>
-                  📋 BEFORE (Original)
-                </p>
-                <div className="space-y-1.5">
-                  <div className="flex justify-between text-xs">
-                    <span className={subText}>Subtotal</span>
-                    <span className={text}>
-                      Rs. {originalSubtotal.toLocaleString()}
-                    </span>
-                  </div>
-                  <div className="flex justify-between text-xs">
-                    <span className={subText}>Discount</span>
-                    <span className="text-green-500">
-                      -Rs. {originalDiscount}
-                    </span>
-                  </div>
-                  <div
-                    className={`flex justify-between text-sm font-bold pt-1 border-t ${border}`}
-                  >
-                    <span className={text}>Total</span>
-                    <span className={text}>
-                      Rs. {originalTotal.toLocaleString()}
-                    </span>
-                  </div>
-                  <p className={`text-[10px] ${subText}`}>
-                    {order.items?.length || 0} items
-                  </p>
-                </div>
-              </div>
+          {/* ═══ Summary Toggle ═══ */}
+          <div className="space-y-2">
+            <GlassToggle
+              open={showSummary}
+              toggle={() => setShowSummary(v => !v)}
+              icon={<span className="text-sm">📊</span>}
+              label="Summary"
+              badge={diff !== 0
+                ? `${diff > 0 ? "+" : ""}Rs.${diff.toLocaleString()}`
+                : null}
+            />
 
-              {/* After */}
-              <div
-                className={`rounded-lg p-3 ${
-                  isDark ? "bg-amber-900/10" : "bg-amber-50"
-                }`}
-              >
-                <p className={`text-xs font-bold ${accent} mb-2`}>
-                  ✏️ AFTER (Modified)
-                </p>
-                <div className="space-y-1.5">
-                  <div className="flex justify-between text-xs">
-                    <span className={subText}>Subtotal</span>
-                    <span className={text}>
-                      Rs. {newSubtotal.toLocaleString()}
-                    </span>
+            {showSummary && (
+              <div className={`rounded-2xl border overflow-hidden
+                ${glassBg} backdrop-blur-sm animate-in fade-in duration-200`}>
+                <div className="grid grid-cols-2">
+                  {/* Before */}
+                  <div className={`p-3.5 ${isDark ? "bg-white/[0.02]" : "bg-gray-50/50"}`}>
+                    <p className={`text-[9px] font-bold uppercase tracking-widest
+                      ${subText} mb-2 flex items-center gap-1`}>
+                      <span className="w-1.5 h-1.5 rounded-full bg-gray-400" />
+                      Before
+                    </p>
+                    <div className="space-y-1 text-xs">
+                      <div className="flex justify-between">
+                        <span className={subText}>Subtotal</span>
+                        <span className={`${text} tabular-nums`}>Rs.{origSub.toLocaleString()}</span>
+                      </div>
+                      {origDisc > 0 && (
+                        <div className="flex justify-between">
+                          <span className={subText}>Discount</span>
+                          <span className="text-emerald-500 tabular-nums">-Rs.{origDisc}</span>
+                        </div>
+                      )}
+                      <div className={`flex justify-between font-bold pt-1.5 mt-1
+                        border-t ${isDark ? "border-white/10" : "border-gray-200/50"}`}>
+                        <span className={text}>Total</span>
+                        <span className={`${text} tabular-nums`}>Rs.{origTotal.toLocaleString()}</span>
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex justify-between text-xs">
-                    <span className={subText}>Total Discount</span>
-                    <span className="text-green-500">
-                      -Rs. {totalDiscount}
-                    </span>
-                  </div>
-                  <div
-                    className={`flex justify-between text-sm font-bold pt-1 border-t ${border}`}
-                  >
-                    <span className={accent}>New Total</span>
-                    <span className={`text-lg font-extrabold ${accent}`}>
-                      Rs. {newTotal.toLocaleString()}
-                    </span>
-                  </div>
-                  <p className={`text-[10px] ${subText}`}>
-                    {activeItems.length} items
-                  </p>
-                </div>
-              </div>
-            </div>
 
-            {/* Difference */}
-            {totalDifference !== 0 && (
-              <div
-                className={`mt-3 pt-3 border-t ${border} flex items-center justify-center gap-2`}
-              >
-                {totalDifference > 0 ? (
-                  <FiArrowUp className="w-4 h-4 text-green-500" />
-                ) : (
-                  <FiArrowDown className="w-4 h-4 text-red-500" />
+                  {/* After */}
+                  <div className={`p-3.5 ${isDark ? "bg-amber-500/[0.03]" : "bg-amber-50/30"}`}>
+                    <p className="text-[9px] font-bold uppercase tracking-widest
+                      text-amber-500 mb-2 flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                      After
+                    </p>
+                    <div className="space-y-1 text-xs">
+                      <div className="flex justify-between">
+                        <span className={subText}>Subtotal</span>
+                        <span className={`${text} tabular-nums`}>Rs.{newSub.toLocaleString()}</span>
+                      </div>
+                      {totalDisc > 0 && (
+                        <div className="flex justify-between">
+                          <span className={subText}>Discount</span>
+                          <span className="text-emerald-500 tabular-nums">-Rs.{totalDisc}</span>
+                        </div>
+                      )}
+                      <div className={`flex justify-between font-bold pt-1.5 mt-1
+                        border-t ${isDark ? "border-white/10" : "border-gray-200/50"}`}>
+                        <span className="text-amber-500">Total</span>
+                        <span className="text-amber-500 text-base tabular-nums">
+                          Rs.{newTotal.toLocaleString()}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {diff !== 0 && (
+                  <div className={`flex items-center justify-center gap-2 py-2
+                    border-t ${isDark ? "border-white/5 bg-white/[0.02]" : "border-gray-100 bg-gray-50/30"}`}>
+                    <span className={`text-xs font-bold ${
+                      diff < 0 ? "text-red-500" : "text-emerald-500"
+                    }`}>
+                      {diff > 0 ? "▲" : "▼"} Rs.{Math.abs(diff).toLocaleString()}
+                    </span>
+                  </div>
                 )}
-                <span
-                  className={`text-sm font-bold ${
-                    totalDifference > 0 ? "text-green-500" : "text-red-500"
-                  }`}
-                >
-                  {totalDifference > 0 ? "+" : ""}Rs.{" "}
-                  {totalDifference.toLocaleString()} difference
-                </span>
               </div>
             )}
           </div>
         </div>
 
-        {/* Footer */}
-        <div
-          className={`px-5 py-4 border-t ${border} flex items-center gap-3 flex-shrink-0`}
-        >
-          <button
-            onClick={onClose}
-            disabled={saving}
-            className={`px-4 py-2.5 rounded-xl border ${border} text-sm font-medium ${subText} transition-all active:scale-95`}
-          >
-            Cancel
-          </button>
+        {/* ── Footer ── */}
+        <div className={`px-5 py-4 border-t ${border} flex-shrink-0
+          ${isDark ? "bg-white/[0.02]" : "bg-gray-50/30"}`}>
+          {/* Total bar */}
+          <div className={`flex items-center justify-between mb-3 px-4 py-2.5 rounded-2xl ${
+            isDark
+              ? "bg-amber-500/10 border border-amber-500/15"
+              : "bg-amber-50/80 border border-amber-200/50"
+          }`}>
+            <span className={`text-sm font-bold ${subText}`}>New Total</span>
+            <span className="text-xl font-extrabold text-amber-500 tabular-nums">
+              Rs.{newTotal.toLocaleString()}
+            </span>
+          </div>
 
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white text-sm font-bold transition-all flex items-center gap-2 shadow-lg shadow-amber-500/20 active:scale-95"
-          >
-            {saving ? (
-              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-            ) : (
-              <FiSave className="w-4 h-4" />
-            )}
-            Save Changes
-          </button>
-
-          {order.status === "pending" && (
+          {/* Buttons */}
+          <div className="flex items-center gap-3">
             <button
-              onClick={handleSaveAndPay}
+              onClick={onClose}
               disabled={saving}
-              className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 disabled:opacity-50 text-white text-sm font-extrabold transition-all flex items-center gap-2 shadow-lg shadow-emerald-500/20 active:scale-95 ml-auto"
+              className={`px-4 py-2.5 rounded-xl border text-sm font-medium
+                transition-all active:scale-95 disabled:opacity-50
+                ${isDark
+                  ? "border-white/10 text-gray-400 hover:bg-white/5"
+                  : "border-gray-200 text-gray-500 hover:bg-gray-50"
+                }`}
             >
-              {saving ? (
-                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              ) : (
-                <FiZap className="w-4 h-4" />
-              )}
-              Save + Pay Rs. {newTotal.toLocaleString()}
+              Cancel
             </button>
-          )}
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500
+                hover:from-amber-600 hover:to-orange-600 disabled:opacity-50
+                text-white text-sm font-bold flex items-center justify-center gap-2
+                shadow-lg shadow-amber-500/25 active:scale-[0.98] transition-all"
+            >
+              {saving
+                ? <div className="w-4 h-4 border-2 border-white border-t-transparent
+                    rounded-full animate-spin" />
+                : <FiSave className="w-4 h-4" />}
+              {saving ? "Saving..." : "Save & Print"}
+            </button>
+          </div>
         </div>
       </div>
     </div>

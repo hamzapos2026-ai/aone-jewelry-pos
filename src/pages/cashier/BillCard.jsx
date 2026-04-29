@@ -1,11 +1,10 @@
 // src/components/cashier/BillCard.jsx
 import React, { useState, useCallback, memo } from "react";
 import {
-  FiUser, FiPhone, FiClock, FiCheckCircle, FiXCircle,
-  FiEye, FiTag, FiChevronDown, FiChevronUp,
-  FiAlertCircle, FiEdit3, FiZap,
-} from "react-icons/fi";
-import { MdPayment } from "react-icons/md";
+  User, Phone, Clock, CheckCircle, XCircle,
+  Eye, Tag, ChevronDown, ChevronUp,
+  AlertCircle, Edit3, Zap, CreditCard,
+} from "lucide-react";
 
 const BillCard = memo(({
   order,
@@ -54,7 +53,7 @@ const BillCard = memo(({
     const map = {
       paid: <FiCheckCircle className="w-3.5 h-3.5" />,
       pending: <FiClock className="w-3.5 h-3.5" />,
-      cancelled: <FiXCircle className="w-3.5 h-3.5" />,
+      cancelled: <XCircle className="w-3.5 h-3.5" />,
     };
     return map[status] || <FiAlertCircle className="w-3.5 h-3.5" />;
   }, []);
@@ -112,7 +111,7 @@ const BillCard = memo(({
                   : "bg-red-500/20"
               }`}
             >
-              <MdPayment
+              <CreditCard
                 className={`w-5 h-5 ${
                   isPaid
                     ? "text-emerald-500"
@@ -145,12 +144,12 @@ const BillCard = memo(({
 
               <div className="flex items-center gap-3 mt-1.5 flex-wrap">
                 <span className={`flex items-center gap-1 text-xs ${subText}`}>
-                  <FiUser className="w-3 h-3 text-amber-500" />
+                  <User className="w-3 h-3 text-amber-500" />
                   {order.customer?.name || "Walking Customer"}
                 </span>
                 {order.customer?.phone && (
                   <span className={`flex items-center gap-1 text-xs ${subText}`}>
-                    <FiPhone className="w-3 h-3 text-amber-500" />
+                    <Phone className="w-3 h-3 text-amber-500" />
                     {order.customer.phone}
                   </span>
                 )}
@@ -340,7 +339,7 @@ const BillCard = memo(({
               bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/30 
               transition-all active:scale-95"
           >
-            <FiXCircle className="w-3.5 h-3.5" />
+            <XCircle className="w-3.5 h-3.5" />
             Cancel
           </button>
         )}
@@ -368,7 +367,7 @@ const BillCard = memo(({
           <span
             className={`text-xs ${subText} italic flex items-center gap-1 ml-auto`}
           >
-            <FiXCircle className="w-3 h-3 text-red-400" />
+            <XCircle className="w-3 h-3 text-red-400" />
             {order.cancelReason || "Cancelled"}
           </span>
         )}

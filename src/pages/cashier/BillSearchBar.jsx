@@ -1,10 +1,9 @@
 // src/components/cashier/BillSearchBar.jsx
 import React, { useState, useCallback, useRef, memo } from "react";
 import {
-  FiSearch, FiXCircle, FiRefreshCw, FiClock, FiCheckCircle,
-  FiX, FiAlertTriangle, FiFileText,
-} from "react-icons/fi";
-import { BsQrCode } from "react-icons/bs";
+  Search, XCircle, RefreshCw, Clock, CheckCircle,
+  X, AlertTriangle, FileText, QrCode,
+} from "lucide-react";
 
 const BillSearchBar = memo(({
   isDark,
@@ -32,10 +31,10 @@ const BillSearchBar = memo(({
     : "bg-gray-50 border-gray-200";
 
   const filterTabs = [
-    { key: "all", label: "All", count: stats.total, icon: <FiFileText className="w-3 h-3" /> },
-    { key: "pending", label: "Pending", count: stats.pending, icon: <FiClock className="w-3 h-3" /> },
-    { key: "paid", label: "Paid", count: stats.paid, icon: <FiCheckCircle className="w-3 h-3" /> },
-    { key: "cancelled", label: "Cancelled", count: stats.cancelled, icon: <FiX className="w-3 h-3" /> },
+    { key: "all", label: "All", count: stats.total, icon: <FileText className="w-3 h-3" /> },
+    { key: "pending", label: "Pending", count: stats.pending, icon: <Clock className="w-3 h-3" /> },
+    { key: "paid", label: "Paid", count: stats.paid, icon: <CheckCircle className="w-3 h-3" /> },
+    { key: "cancelled", label: "Cancelled", count: stats.cancelled, icon: <X className="w-3 h-3" /> },
   ];
 
   const handleInputChange = useCallback(
@@ -78,7 +77,7 @@ const BillSearchBar = memo(({
         {/* Search Row */}
         <div className="flex flex-col sm:flex-row gap-3">
           <div className="relative flex-1">
-            <FiSearch className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 ${subText}`} />
+            <Search className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 ${subText}`} />
             <input
               type="text"
               placeholder="Search bill #, customer name, phone..."
@@ -95,7 +94,7 @@ const BillSearchBar = memo(({
                 onClick={handleClear}
                 className={`absolute right-3 top-1/2 -translate-y-1/2 ${subText} hover:text-red-500 transition-colors`}
               >
-                <FiXCircle className="w-4 h-4" />
+                <XCircle className="w-4 h-4" />
               </button>
             )}
             {searching && (
@@ -111,7 +110,7 @@ const BillSearchBar = memo(({
               hover:from-amber-600 hover:to-orange-600 text-white rounded-xl text-sm font-medium 
               transition-all shadow-md shadow-amber-500/20 whitespace-nowrap active:scale-95"
           >
-            <BsQrCode className="w-4 h-4" />
+            <QrCode className="w-4 h-4" />
             <span className="hidden sm:inline">Scan QR</span>
             <span className="sm:hidden">QR</span>
           </button>
@@ -121,7 +120,7 @@ const BillSearchBar = memo(({
             className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border ${border} ${cardBg} 
               ${subText} text-sm hover:border-amber-500 hover:text-amber-500 transition-all active:scale-95`}
           >
-            <FiRefreshCw className="w-4 h-4" />
+            <RefreshCw className="w-4 h-4" />
             <span className="hidden sm:inline">Reset</span>
           </button>
         </div>
@@ -166,7 +165,7 @@ const BillSearchBar = memo(({
                 isDark ? "text-red-400" : "text-red-600"
               }`}
             >
-              <FiAlertTriangle className="w-4 h-4 flex-shrink-0" />
+              <AlertTriangle className="w-4 h-4 flex-shrink-0" />
               <span>{searchError}</span>
             </div>
           </div>
@@ -175,7 +174,7 @@ const BillSearchBar = memo(({
         {searchQuery && !searchError && (
           <div className={`mt-3 pt-3 border-t ${border}`}>
             <p className={`text-xs ${subText} flex items-center gap-2`}>
-              <FiSearch className="w-3 h-3 text-amber-500" />
+              <Search className="w-3 h-3 text-amber-500" />
               <span>Searching:</span>
               <span className="text-amber-500 font-medium">"{searchQuery}"</span>
               {suggestions.length > 0 && (

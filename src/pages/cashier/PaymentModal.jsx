@@ -5,10 +5,9 @@ import {
 } from "firebase/firestore";
 import { db } from "../../services/firebase";
 import {
-  FiX, FiCheckCircle, FiDollarSign, FiUser, FiPhone,
-  FiTag, FiMessageSquare, FiAlertCircle, FiZap,
-} from "react-icons/fi";
-import { MdPayment, MdAccountBalance } from "react-icons/md";
+  X, CheckCircle, DollarSign, User, Phone,
+  Tag, MessageSquare, AlertCircle, Zap, CreditCard, Wallet,
+} from "lucide-react";
 import { toast } from "react-hot-toast";
 
 const PAYMENT_METHODS = [
@@ -148,7 +147,7 @@ const PaymentModal = memo(({ order, isDark, userData, storeData, onClose }) => {
         <div className={`flex items-center justify-between px-5 py-4 border-b ${border}`}>
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 bg-emerald-500/20 rounded-xl flex items-center justify-center">
-              <MdPayment className="text-emerald-500 w-5 h-5" />
+              <CreditCard className="text-emerald-500 w-5 h-5" />
             </div>
             <div>
               <h2 className={`font-bold text-base ${text}`}>Receive Payment</h2>
@@ -161,7 +160,7 @@ const PaymentModal = memo(({ order, isDark, userData, storeData, onClose }) => {
             onClick={onClose}
             className={`p-1.5 rounded-lg hover:bg-red-500/10 ${subText} hover:text-red-500 transition-colors`}
           >
-            <FiX className="w-5 h-5" />
+            <X className="w-5 h-5" />
           </button>
         </div>
 
@@ -201,7 +200,7 @@ const PaymentModal = memo(({ order, isDark, userData, storeData, onClose }) => {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className={`block text-xs font-medium ${subText} mb-1.5`}>
-                <FiUser className="inline w-3 h-3 mr-1 text-amber-500" />
+                <User className="inline w-3 h-3 mr-1 text-amber-500" />
                 Customer Name
               </label>
               <input

@@ -1,4 +1,6 @@
 // src/layouts/biller/BillerLayout.jsx
+// ✅ FIXED — Correct imports, clean layout
+
 import { Outlet, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useEffect, useState } from "react";
@@ -6,7 +8,7 @@ import { doc, getDoc } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 import { WifiOff } from "lucide-react";
 
-import { useTheme } from "../../hooks/useTheme";
+import { useTheme } from "../../context/ThemeContext";
 import { useLanguage } from "../../hooks/useLanguage";
 import useNetworkStatus from "../../hooks/useNetworkStatus";
 import { auth, db } from "../../services/firebase";
@@ -104,14 +106,6 @@ const BillerLayout = () => {
       className={`min-h-screen ${isDark ? "bg-[#050505] text-white" : "bg-gray-50 text-gray-900"}`}
       dir={isRTL ? "rtl" : "ltr"}
     >
-      {/* Offline Banner */}
-      {!isOnline && (
-        <div className="sticky top-0 z-50 flex items-center justify-center gap-2 bg-gradient-to-r from-orange-600 to-amber-600 px-4 py-2 text-sm font-medium text-white shadow-lg">
-          <WifiOff size={16} />
-          <span>Offline Mode - Bills save locally & sync when online</span>
-        </div>
-      )}
-
       {/* Background */}
       <div className="pointer-events-none fixed inset-0 overflow-hidden opacity-30">
         <div className="absolute left-1/4 top-0 h-96 w-96 rounded-full bg-yellow-500/5 blur-3xl" />
@@ -119,14 +113,15 @@ const BillerLayout = () => {
         <div className="absolute inset-0 bg-[linear-gradient(rgba(251,191,36,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(251,191,36,0.02)_1px,transparent_1px)] bg-[size:48px_48px]" />
       </div>
 
-      {/* NO Header imported here - BillerHeader is inside Dashboard */}
+      {/* NO Header here — BillerHeader is inside Dashboard */}
       <div className="relative flex min-h-screen flex-col">
-        <main className="flex-1 p-2 lg:p-3">
+        <main className="flex-1">
           <motion.div
             key={location.pathname}
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3 }}
+            className="h-screen"
           >
             <Outlet />
           </motion.div>

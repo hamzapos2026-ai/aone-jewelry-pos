@@ -7,7 +7,7 @@ import {
   doc, updateDoc, addDoc, collection, serverTimestamp, deleteDoc,
 } from "firebase/firestore";
 import { db } from "../../services/firebase";
-import { FiX, FiXCircle, FiAlertTriangle, FiChevronDown, FiEdit3 } from "react-icons/fi";
+import { X, XCircle, AlertTriangle, ChevronDown, Edit3 } from "lucide-react";
 import { toast } from "react-hot-toast";
 
 const CANCEL_REASONS = [
@@ -122,7 +122,7 @@ const CancelBillModal = ({ order, isDark, userData, onClose }) => {
         <div className={`flex items-center justify-between px-5 py-4 border-b ${border}`}>
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 bg-red-500/20 rounded-xl flex items-center justify-center">
-              <FiXCircle className="text-red-500 w-5 h-5" />
+              <XCircle className="text-red-500 w-5 h-5" />
             </div>
             <div>
               <h2 className={`font-bold text-base ${text}`}>Cancel Bill</h2>
@@ -130,7 +130,7 @@ const CancelBillModal = ({ order, isDark, userData, onClose }) => {
             </div>
           </div>
           <button onClick={onClose} className={`p-1.5 rounded-lg ${subText} hover:text-red-500`}>
-            <FiX className="w-5 h-5" />
+            <X className="w-5 h-5" />
           </button>
         </div>
 
@@ -140,7 +140,7 @@ const CancelBillModal = ({ order, isDark, userData, onClose }) => {
           <div className={`flex items-start gap-3 p-3 rounded-xl ${
             isDark ? "bg-red-900/20 border border-red-800" : "bg-red-50 border border-red-200"
           }`}>
-            <FiAlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+            <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
             <div>
               <p className="text-sm font-medium text-red-500">Cannot be undone</p>
               <p className={`text-xs ${subText} mt-0.5`}>
@@ -170,7 +170,7 @@ const CancelBillModal = ({ order, isDark, userData, onClose }) => {
                   : `${border} ${subText}`
               }`}
             >
-              <FiEdit3 className="w-3 h-3" /> Type Custom
+              <Edit3 className="w-3 h-3" /> Type Custom
             </button>
           </div>
 
@@ -191,7 +191,7 @@ const CancelBillModal = ({ order, isDark, userData, onClose }) => {
                   }`}
                 >
                   <span className="truncate">{selectedReason || "Select a reason..."}</span>
-                  <FiChevronDown className={`w-4 h-4 shrink-0 transition-transform ${dropdownOpen ? "rotate-180" : ""}`} />
+                  <ChevronDown className={`w-4 h-4 shrink-0 transition-transform ${dropdownOpen ? "rotate-180" : ""}`} />
                 </button>
 
                 {dropdownOpen && (
@@ -251,7 +251,7 @@ const CancelBillModal = ({ order, isDark, userData, onClose }) => {
               text-white text-sm font-bold flex items-center justify-center gap-2 active:scale-95">
             {loading
               ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              : <FiXCircle className="w-4 h-4" />}
+              : <XCircle className="w-4 h-4" />}
             {loading ? "Cancelling..." : "Cancel Bill"}
           </button>
         </div>

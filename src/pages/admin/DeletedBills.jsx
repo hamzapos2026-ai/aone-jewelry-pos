@@ -6,10 +6,9 @@ import { db } from "../../services/firebase";
 import { useAuth } from "../../context/AuthContext";
 import { useTheme } from "../../context/ThemeContext";
 import {
-  FiFilter, FiDownload, FiCalendar, FiUser, FiTrendingDown,
-  FiSearch, FiX,
-} from "react-icons/fi";
-import { MdReceiptLong, MdStore } from "react-icons/md";
+  Filter, Download, Calendar, User, TrendingDown,
+  Search, X, Receipt, Store,
+} from "lucide-react";
 import { toast } from "react-hot-toast";
 
 const DeletedBills = () => {
